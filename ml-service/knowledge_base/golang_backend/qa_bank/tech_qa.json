@@ -1,0 +1,1526 @@
+[
+  {
+    "question": "什么是面向对象？",
+    "category": "oop",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "基于对象概念的编程范式",
+      "对象包含数据字段和方法",
+      "对象是类的实例化结果",
+      "核心特性为封装、继承、多态",
+      "通过访问控制保护内部状态"
+    ]
+  },
+  {
+    "question": "Go语言是面向对象的语言吗？",
+    "category": "oop",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "支持OOP编程风格但无类型层次",
+      "接口实现更通用的多态能力",
+      "类型嵌入实现类似继承的效果",
+      "方法可定义在任意类型含内置类型",
+      "对象更轻巧无传统类的层级结构"
+    ]
+  },
+  {
+    "question": "Go如何实现面向对象的封装特性？",
+    "category": "oop",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "通过首字母大小写控制访问权限",
+      "大写为公共属性，可外部访问",
+      "小写为私有属性，仅包内可见",
+      "私有属性通过Setter/Getter对外访问"
+    ]
+  },
+  {
+    "question": "Go如何实现面向对象的继承特性？",
+    "category": "oop",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "无extends关键字，通过匿名组合结构体实现",
+      "子类嵌入父类结构体，可直接调用父类成员",
+      "多匿名结构体嵌入实现多重继承",
+      "有名结构体嵌入为组合，非继承"
+    ]
+  },
+  {
+    "question": "Go如何实现面向对象的多态特性？",
+    "category": "oop",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "通过接口实现多态，无需显式声明实现",
+      "类型实现接口所有方法即隐式实现该接口",
+      "接口作为函数参数接收所有实现类实例",
+      "不同实例执行同名方法呈现不同行为"
+    ]
+  },
+  {
+    "question": "Go语言和Java有什么区别？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "Go不支持函数重载，Java支持该特性",
+      "Go运行速度更快，可自动扩展到多核心",
+      "Go通过匿名组合实现多继承，Java不支持",
+      "Go无默认多态，Java默认支持多态",
+      "Go编译为二进制文件，部署更便捷"
+    ]
+  },
+  {
+    "question": "Go语言和Python有什么区别？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "Go是静态类型，Python是动态类型",
+      "Go内置并发机制，Python无原生支持",
+      "Go可手动管理内存，Python由VM自动管理",
+      "Go语法用大括号，Python用缩进标识代码块",
+      "Python第三方库更丰富，Go标准库更实用"
+    ]
+  },
+  {
+    "question": "为什么选择Golang？",
+    "category": "general",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "原生协程支持，高效处理高并发",
+      "语法简单，学习曲线低上手快",
+      "编译速度快，开发运行效率双高",
+      "编译为单二进制文件，部署方便",
+      "谷歌背书，生态和标准库完善",
+      "编译检查严格，程序稳定性高"
+    ]
+  },
+  {
+    "question": "Golang的缺点有哪些？",
+    "category": "general",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "右大括号不可换行，否则编译报错",
+      "不允许存在未使用的包或变量",
+      "错误处理繁琐，大量if err != nil语句",
+      "struct无构造和析构函数",
+      "保留C/C++的指针操作特性"
+    ]
+  },
+  {
+    "question": "Golang中make和new的区别是什么？",
+    "category": "memory",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "二者均为变量分配内存空间",
+      "new用于基本类型/数组，make仅用于切片/Map/Channel",
+      "new返回变量指针，make返回变量本身",
+      "new分配空间后清零，make会做初始化"
+    ]
+  },
+  {
+    "question": "for range遍历的时候变量地址会发生变化么？",
+    "category": "data_structure",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "遍历变量的内存地址始终保持不变",
+      "每次循环以值覆盖方式赋值给遍历变量",
+      "循环内开协程直接传变量地址会出问题",
+      "解决方法是循环内创建临时变量接收值"
+    ]
+  },
+  {
+    "question": "Golang中defer的作用是什么？多个defer的执行顺序是怎样的？defer何时会修改返回值？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "defer用于延迟执行，做资源释放和panic捕获",
+      "多个defer遵循后入先出的执行顺序",
+      "执行顺序为return→return value→defer",
+      "有名返回值或返回指针时可修改最终返回值",
+      "defer需紧跟资源打开，避免内存泄漏"
+    ]
+  },
+  {
+    "question": "Golang中uint类型溢出会发生什么？",
+    "category": "general",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "uint类型溢出无报错，会循环取值",
+      "如uint8最大值255加1结果为0",
+      "溢出会导致程序出现不可预期的错误"
+    ]
+  },
+  {
+    "question": "Golang中的rune类型是什么？",
+    "category": "data_structure",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "rune等价于int32，代表Unicode码点",
+      "用于处理中文字符等非ASCII字符",
+      "Go字符串底层是byte数组，默认UTF-8编码",
+      "可通过rune转换获取字符串实际字符长度"
+    ]
+  },
+  {
+    "question": "Golang中解析tag是怎么实现的？反射原理是什么？",
+    "category": "reflect",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "tag解析通过反射包reflect实现",
+      "反射是程序运行时访问修改自身状态的能力",
+      "将接口变量转为reflect.Type/Value对象",
+      "tag是结构体字段的标记，存储在StructField中",
+      "gorm/gin等框架均基于该特性实现"
+    ]
+  },
+  {
+    "question": "Go的函数参数传递是值传递还是引用传递？调用函数传入结构体时应该传值还是指针？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "Go中所有参数传递均为值传递",
+      "结构体传值会复制整个实例，开销较大",
+      "结构体传指针可避免拷贝，且能修改原实例",
+      "map/slice/chan是引用类型，值传递仍会修改原数据"
+    ]
+  },
+  {
+    "question": "goroutine什么情况下会阻塞？",
+    "category": "concurrency",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "原子、互斥量或通道操作会导致阻塞",
+      "网络请求和IO操作触发goroutine阻塞",
+      "文件IO等系统方法调用会阻塞当前M",
+      "sleep操作会导致M被阻塞",
+      "阻塞时调度器会切换执行其他goroutine"
+    ]
+  },
+  {
+    "question": "Go的select底层数据结构和一些特性是什么？",
+    "category": "concurrency",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "实现多路IO复用，检测通道读写事件",
+      "至少需一个case语句，nil通道分支会被忽略",
+      "仅支持管道操作，单个case仅处理一个管道",
+      "多个case执行顺序随机，无固定规则",
+      "有default则不阻塞，但会影响程序性能"
+    ]
+  },
+  {
+    "question": "Go的defer底层数据结构和一些特性是什么？",
+    "category": "general",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "每个defer对应一个实例，通过单链表存储",
+      "链表挂载在goroutine数据结构中，插入头部",
+      "执行时从头部取出，实现后入先出",
+      "defer参数在声明时就已确定",
+      "defer可操作函数的返回值"
+    ]
+  },
+  {
+    "question": "Golang中单引号、双引号、反引号的区别是什么？",
+    "category": "general",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "单引号表示byte/rune类型，默认rune",
+      "双引号表示字符串，底层是byte数组，支持转义",
+      "反引号表示字符串字面量，不支持任何转义",
+      "byte处理ASCII字符，rune处理Unicode字符"
+    ]
+  },
+  {
+    "question": "Go出现panic的场景有哪些？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "数组/切片下标越界、空指针调用",
+      "向已关闭的通道发消息、重复关闭通道",
+      "未初始化Map直接赋值、除以0",
+      "类型断言不匹配、过早关闭HTTP响应体",
+      "sync计数为负数、关闭未初始化的通道"
+    ]
+  },
+  {
+    "question": "Go是否支持while循环？如何实现这种机制？",
+    "category": "general",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "Go无专门的while循环关键字",
+      "通过for循环省略条件表达式实现",
+      "for 条件 { ... }等价于while条件循环",
+      "for { ... }实现无限循环，配合break退出"
+    ]
+  },
+  {
+    "question": "Go里面如何实现set？",
+    "category": "data_structure",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "Go无原生Set类型，通过Map实现",
+      "利用Map的key唯一性特性",
+      "value使用空结构体struct{}{}，不占内存",
+      "通过Map的增删查实现Set的核心操作"
+    ]
+  },
+  {
+    "question": "Go怎么去复用一个接口的方法？",
+    "category": "oop",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "通过接口嵌套实现方法复用",
+      "外层接口嵌入其他接口，继承其方法集",
+      "实现外层接口需实现所有嵌入接口的方法",
+      "接口嵌套为隐式继承，无需显式声明"
+    ]
+  },
+  {
+    "question": "Go里面的下划线_有哪些用途？",
+    "category": "general",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "忽略函数的多余返回值",
+      "用于类型断言，判断结构体是否实现接口",
+      "导入包时使用，仅执行包的初始化函数",
+      "作为占位符，占用无需使用的变量位置"
+    ]
+  },
+  {
+    "question": "goroutine创建的时候如果要传一个参数进去有什么要注意的点？",
+    "category": "concurrency",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "Go1.22前for循环传参直接传变量会值覆盖",
+      "循环内创建临时变量接收参数再传给协程",
+      "Go1.22后优化了for循环，每次迭代创建新变量",
+      "传参时建议显式传值，避免版本差异问题"
+    ]
+  },
+  {
+    "question": "写Go单元测试的规范有哪些？",
+    "category": "test",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "测试文件命名为xxx_test.go，单独创建",
+      "测试包名一般为原包名+_test",
+      "测试方法以Test开头，首字母大写",
+      "测试方法参数必须为t *testing.T"
+    ]
+  },
+  {
+    "question": "Golang如何进行单步调试？",
+    "category": "test",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "常用单步调试工具为delve（dlv）",
+      "delve是Go官方推荐的调试神器",
+      "通过dlv debug启动本地调试",
+      "支持远程调试，适用于线上问题排查"
+    ]
+  },
+  {
+    "question": "导入一个Go的工程，有些依赖找不到，该怎么解决？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "使用Go modules管理，执行go mod init初始化",
+      "执行go mod tidy自动拉取缺失依赖",
+      "检查GOPROXY代理配置，确保可访问镜像源",
+      "确认导入路径和依赖版本号正确"
+    ]
+  },
+  {
+    "question": "Golang中的值拷贝与引用拷贝、深拷贝与浅拷贝的区别是什么？",
+    "category": "memory",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "值拷贝是深拷贝，新对象与原对象完全独立",
+      "引用拷贝是浅拷贝，新旧对象共享底层数据",
+      "map/slice/chan为引用类型，值传递仍为浅拷贝",
+      "数组是值类型，值传递为深拷贝",
+      "可通过copy函数实现切片的深拷贝"
+    ]
+  },
+  {
+    "question": "Go的多返回值是怎么实现的？",
+    "category": "general",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "通过FP+offset实现，存储在调用函数栈帧",
+      "FP为栈底寄存器，指向调用函数栈顶",
+      "返回值先写入栈帧指定位置，调用方后续读取",
+      "多个返回值按顺序分配栈帧空间"
+    ]
+  },
+  {
+    "question": "Go语言中不同的类型如何比较是否相等？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "基本类型可直接使用==运算符比较",
+      "slice/Map/struct需用reflect.DeepEqual比较",
+      "reflect.DeepEqual会递归比较对象所有成员",
+      "接口类型比较需动态类型和值均相等",
+      "可比较类型需满足值不可变特性"
+    ]
+  },
+  {
+    "question": "Go中init函数的特征有哪些？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "一个包/文件可包含多个init函数，按声明执行",
+      "包级别变量初始化先于init函数",
+      "包初始化从最深层导入包开始，层层递出",
+      "无论导入多少次，init函数仅执行一次",
+      "main函数执行在所有init函数之后"
+    ]
+  },
+  {
+    "question": "Go中uintptr和unsafe.Pointer的区别是什么？",
+    "category": "memory",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "unsafe.Pointer是通用指针类型，不可参与数值计算",
+      "uintptr是无符号整型，可做指针运算，不能持有对象",
+      "二者可相互转换，unsafe.Pointer是指针运算桥梁",
+      "任何类型指针可与unsafe.Pointer相互转换"
+    ]
+  },
+  {
+    "question": "什么是goroutine？",
+    "category": "concurrency",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "Go的轻量级线程，由Go运行时管理",
+      "通过go关键字启动，创建销毁开销极低",
+      "可创建成千上万个，高效处理高并发",
+      "通过channel实现协程间安全通信",
+      "无需手动管理，由运行时自动调度"
+    ]
+  },
+  {
+    "question": "Golang中数组和切片的区别是什么？",
+    "category": "data_structure",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "数组是定长的，切片长度和容量可动态扩容",
+      "数组是值类型，切片是引用类型指向底层数组",
+      "数组传参拷贝整个实例，切片仅拷贝结构体",
+      "数组长度是类型的一部分，切片无此限制"
+    ]
+  },
+  {
+    "question": "Go的slice底层数据结构和一些特性是什么？",
+    "category": "data_structure",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "底层由数组指针、len长度、cap容量组成",
+      "append时容量足够直接追加，不足则触发扩容",
+      "扩容后生成新底层数组，原切片与新切片无关联",
+      "函数内修改切片未扩容会影响原底层数组",
+      "扩容策略随Go版本更新做了优化调整"
+    ]
+  },
+  {
+    "question": "Golang中数组和slice作为参数的区别是什么？slice作为参数传递有什么问题？",
+    "category": "data_structure",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "数组传参是值拷贝，函数内修改不影响原数组",
+      "切片传参是值拷贝，但共享底层数组，修改会影响原切片",
+      "切片在函数内扩容会指向新数组，修改与原切片无关",
+      "不想修改原切片可通过copy函数深拷贝后传入"
+    ]
+  },
+  {
+    "question": "从数组中取一个相同大小的slice有成本吗？",
+    "category": "data_structure",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "操作成本极低，仅创建新的切片结构体",
+      "切片结构体仅包含指针、len、cap，占用内存小",
+      "新切片与原数组共享底层数据，不复制数组内容",
+      "仅分配切片结构体的内存，无其他性能开销"
+    ]
+  },
+  {
+    "question": "Golang中切片的新旧扩容策略有什么区别？",
+    "category": "data_structure",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "Go1.18前阈值1024，小于则翻倍，大于则扩容25%",
+      "Go1.18后阈值256，小于则翻倍，大于则按公式缓慢扩容",
+      "新版本扩容系数随容量增大而降低，更节省内存",
+      "两种版本均满足：期望容量超2倍则用期望容量",
+      "扩容会考虑内存对齐，实际容量≥计算值"
+    ]
+  },
+  {
+    "question": "Golang中什么类型可以作为map的key？",
+    "category": "data_structure",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "key必须是可比较的类型，可用==/!=判断",
+      "基本类型均可作为map的key",
+      "结构体/数组作为key需所有成员可比较",
+      "slice/Map/函数类型不可比较，不能作为key",
+      "可使用指向不可比较类型的指针作为key"
+    ]
+  },
+  {
+    "question": "Golang中map的使用注意点有哪些？是否并发安全？",
+    "category": "data_structure",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "key唯一，重复赋值会覆盖旧值",
+      "使用前需用make初始化，nil map读写会panic",
+      "遍历顺序不确定，需排序key实现有序遍历",
+      "默认map非并发安全，并发读写会导致竞态",
+      "nil map查找返回零值，添加操作会panic"
+    ]
+  },
+  {
+    "question": "Golang中map循环是有序的还是无序的？",
+    "category": "data_structure",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "map的遍历是无序的，每次顺序可能不同",
+      "底层基于哈希表，存储顺序由哈希值决定",
+      "需有序遍历需先提取key到切片并排序",
+      "哈希表扩容/删除会改变元素存储顺序"
+    ]
+  },
+  {
+    "question": "Golang中map中删除一个key，它的内存会释放么？",
+    "category": "data_structure",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "delete仅逻辑移除key，不会立即释放内存",
+      "无其他引用的key-value会被GC标记为垃圾",
+      "GC触发时释放垃圾内存，释放时机不确定",
+      "map底层的桶不会因删除而缩小",
+      "大量删除后可创建新map复制保留元素释放内存"
+    ]
+  },
+  {
+    "question": "Golang中怎么处理对map进行并发访问？有没有其他方案？区别是什么？",
+    "category": "data_structure",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "sync.Mutex：互斥锁，读写均加锁，实现简单，写多场景适用",
+      "sync.RWMutex：读写锁，多读单写，读多写少场景性能更优",
+      "sync.Map：Go1.9+原生并发Map，针对读多写少优化",
+      "sync.Map的API与原生map不同，写多场景性能偏低",
+      "sync.Mutex性能中等，是最通用的实现方案"
+    ]
+  },
+  {
+    "question": "Golang中nil map和空map有何不同？",
+    "category": "data_structure",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "nil map未初始化，无底层哈希表，不占用内存",
+      "空map由make初始化，有底层哈希表，仅无键值对",
+      "nil map添加key会panic，空map添加key安全",
+      "二者查找均返回零值，nil map删除无明确结果",
+      "nil map可通过make初始化转为空map"
+    ]
+  },
+  {
+    "question": "Golang中map的数据结构是什么？",
+    "category": "data_structure",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "底层基于哈希表，用链地址法解决哈希冲突",
+      "核心结构是hmap，管理bucket数组和元素个数等",
+      "bucket（bmap）是存储单元，每个可存8个kv对",
+      "bmap包含tophash、data区、overflow溢出指针",
+      "哈希函数优先用AES，不支持则用memhash"
+    ]
+  },
+  {
+    "question": "map的负载因子是什么？如何计算？Go中负载因子的阈值是多少？",
+    "category": "data_structure",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "负载因子衡量哈希表冲突程度",
+      "计算公式：负载因子=键数量/bucket数量",
+      "Go中负载因子阈值为6.5",
+      "阈值高于Redis，因Go的bucket可存8个kv对"
+    ]
+  },
+  {
+    "question": "map的扩容触发条件是什么？",
+    "category": "data_structure",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "负载因子大于6.5，平均每个bucket存6.5个kv对",
+      "overflow数量超过32768（2^15）",
+      "满足任一条件即触发扩容，以空间换时间"
+    ]
+  },
+  {
+    "question": "map的增量扩容是如何实现的？",
+    "category": "data_structure",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "新建bucket，长度为原bucket的2倍",
+      "hmap的oldbuckets指向原bucket，buckets指向新bucket",
+      "新键值对直接插入新bucket",
+      "后续访问map时逐步搬迁旧bucket数据，每次搬迁2个kv对",
+      "旧数据搬迁完毕后删除oldbuckets"
+    ]
+  },
+  {
+    "question": "map的等量扩容是如何实现的？适用于什么场景？",
+    "category": "data_structure",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "bucket数量不变，仅重新排列kv对",
+      "通过搬迁动作减少overflow bucket数量",
+      "适用于overflow过多但负载因子不高的场景",
+      "解决频繁增删导致的空间浪费和访问效率低问题"
+    ]
+  },
+  {
+    "question": "map的查找过程是怎样的？",
+    "category": "data_structure",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "根据key计算哈希值",
+      "取哈希值低位与hmap.B取模确定bucket位置",
+      "取哈希值高位在bucket的tophash数组中匹配",
+      "匹配成功后对比实际key值",
+      "当前bucket未找到则遍历overflow bucket",
+      "扩容期间优先从oldbuckets查找"
+    ]
+  },
+  {
+    "question": "map的插入过程是怎样的？",
+    "category": "data_structure",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "计算key的哈希值并确定bucket位置",
+      "检查key是否已存在，存在则更新值",
+      "不存在则插入到bucket的空闲位置",
+      "插入前先检查是否需要触发扩容",
+      "扩容后新键值对插入新bucket"
+    ]
+  },
+  {
+    "question": "map增删查的时间复杂度是多少？为什么？",
+    "category": "data_structure",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "平均时间复杂度为O(1)，基于哈希表实现",
+      "哈希函数将key映射到固定bucket，常数时间定位",
+      "极端情况下（哈希冲突严重）退化为O(n)",
+      "合理使用场景下哈希冲突罕见，维持O(1)性能"
+    ]
+  },
+  {
+    "question": "可以对map里面的一个元素取地址吗？为什么？",
+    "category": "data_structure",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "不可以直接对map元素取地址",
+      "map元素的内存位置不固定，扩容会搬迁数据",
+      "获取的是元素副本的地址，非原始存储地址",
+      "修改副本不会影响map中的原始值",
+      "需修改原始值可使用指针类型作为map的value"
+    ]
+  },
+  {
+    "question": "sync.Map的关键原理是什么？",
+    "category": "concurrency",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "读写分离，维护只读字典read和读写字典dirty",
+      "读操作优先访问read字典，无锁高效",
+      "写操作仅更新dirty字典，延迟同步到read",
+      "读操作miss次数达标时同步dirty到read",
+      "读操作通过原子操作保护，写操作加互斥锁"
+    ]
+  },
+  {
+    "question": "sync.Map的锁机制和自己用锁加上map有什么区别？",
+    "category": "concurrency",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "自定义锁（Mutex/RWMutex）为全局锁，读写均需锁",
+      "sync.Map读多无锁，仅读miss时加锁访问dirty",
+      "自定义锁实现简单，sync.Map封装复杂并发逻辑",
+      "sync.Map在读多写少场景性能更优",
+      "自定义锁适用于读写均衡或低并发场景"
+    ]
+  },
+  {
+    "question": "Go语言与鸭子类型的关系是什么？",
+    "category": "interface",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "鸭子类型：对象语义由方法和属性集合决定",
+      "Go作为静态语言，通过接口实现鸭子类型",
+      "无需显式声明实现接口，编译器自动检测",
+      "类型实现接口所有方法即隐式实现该接口"
+    ]
+  },
+  {
+    "question": "方法的值接收者和指针接收者有什么区别？分别在何时使用？",
+    "category": "interface",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "值接收者：方法操作调用者的副本，不影响原对象",
+      "指针接收者：方法操作原对象，修改会生效",
+      "值接收者适用于原始类型、可安全复制的类型",
+      "指针接收者适用于大型结构体、不可复制的类型",
+      "值接收者会隐式实现指针接收者的方法"
+    ]
+  },
+  {
+    "question": "iface和eface的区别是什么？",
+    "category": "interface",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "iface对应有方法的接口，eface对应空接口interface{}",
+      "iface包含tab（指向itab）和data指针",
+      "eface仅包含_type和data指针，结构更简单",
+      "itab存储接口类型、实体类型及方法地址",
+      "eface无方法列表，仅承载实体类型和值"
+    ]
+  },
+  {
+    "question": "接口的动态类型和动态值是什么？",
+    "category": "interface",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "动态类型是接口承载的实体类型",
+      "动态值是接口承载的实体具体值",
+      "iface的tab字段记录动态类型，data字段记录动态值",
+      "接口零值需动态类型和动态值均为nil"
+    ]
+  },
+  {
+    "question": "接口类型和nil作比较的规则是什么？",
+    "category": "interface",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "仅当接口的动态类型和动态值均为nil时，接口==nil",
+      "动态类型非nil时，即使动态值为nil，接口也不等于nil",
+      "空接口（eface）需_type和data均为nil才等于nil",
+      "非空接口（iface）需tab和data均为nil才等于nil"
+    ]
+  },
+  {
+    "question": "类型转换和类型断言的区别是什么？",
+    "category": "interface",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "类型转换适用于兼容类型，语法为<目标类型>(<表达式>)",
+      "类型断言仅针对接口变量，语法为<表达式>.(<目标类型>)",
+      "类型转换编译期检查兼容性，断言运行时检查类型",
+      "断言有安全模式（返回布尔值）和非安全模式（不匹配panic）",
+      "断言用于获取接口承载的具体类型和值"
+    ]
+  },
+  {
+    "question": "接口转换的原理是什么？",
+    "category": "interface",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "具体类型转空接口：复制_type和值到eface",
+      "具体类型转非空接口：使用编译器预先生成的itab",
+      "接口转接口：调用getitab函数获取匹配的itab",
+      "itab生成一次后缓存，后续直接复用",
+      "转换成功的前提是源类型实现目标接口的方法集"
+    ]
+  },
+  {
+    "question": "如何用interface实现多态？",
+    "category": "interface",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "定义接口并声明方法集",
+      "多个类型分别实现该接口的方法",
+      "接口变量可接收所有实现类的实例",
+      "调用接口方法时，自动执行实例的具体实现",
+      "同一方法调用呈现不同行为，实现多态"
+    ]
+  },
+  {
+    "question": "Go接口与C++接口有何异同？",
+    "category": "interface",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "相同点：均定义行为规范，不涉及具体实现",
+      "Go为非侵入式，无需显式声明实现",
+      "C++为侵入式，需继承抽象类（含纯虚函数）",
+      "Go通过itab动态分派方法，C++通过虚函数表",
+      "Go的itab运行时生成，C++虚函数表编译期生成"
+    ]
+  },
+  {
+    "question": "Go的Context数据结构是什么样的？使用场景和用途有哪些？",
+    "category": "concurrency",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "包含Deadline、Done、Err、Value四大核心字段",
+      "Deadline返回截止时间，Done返回取消信号channel",
+      "Err说明取消原因，Value用于传递请求范围数据",
+      "使用场景：goroutine生命周期管理、超时控制",
+      "用途：传递取消信号、跨goroutine数据交互"
+    ]
+  },
+  {
+    "question": "Go中context一般可以用来做什么？",
+    "category": "concurrency",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "传递取消信号，终止相关goroutine",
+      "设置截止时间或超时，防止无限等待",
+      "传递请求范围数据（如请求ID、认证信息）",
+      "根Context常用context.Background()或context.TODO()",
+      "通过WithCancel/WithTimeout等函数创建衍生Context"
+    ]
+  },
+  {
+    "question": "channel是否线程安全？锁用在什么地方？",
+    "category": "concurrency",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "channel的发送和接收操作均为原子性，线程安全",
+      "底层通过hchan结构体中的lock互斥锁保证安全",
+      "锁用于保护循环数组、等待队列的并发访问",
+      "遵循“通过通信共享内存”的设计思想",
+      "无需额外加锁即可在多goroutine间安全通信"
+    ]
+  },
+  {
+    "question": "Go channel的底层实现原理（数据结构）是什么？",
+    "category": "concurrency",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "核心结构体为hchan，包含四大核心部分",
+      "循环数组（buf）存储数据，qcount记录元素数",
+      "sendx/recvx标记读写下标，实现环形缓冲",
+      "sendq/recvq为读写等待队列，存储阻塞的goroutine",
+      "lock互斥锁保障并发安全，elemtype记录元素类型"
+    ]
+  },
+  {
+    "question": "对nil channel、关闭的channel、有数据的channel进行读、写、关闭操作会发生什么？",
+    "category": "concurrency",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "nil channel：读写均永久阻塞，关闭panic",
+      "关闭的channel：写操作panic，读操作取完数据后返回零值",
+      "有数据的channel：读操作取走数据，写操作成功（缓冲未满）或阻塞（缓冲已满）",
+      "无缓冲channel：读写同步阻塞，需配对完成",
+      "口诀：空读写阻塞，写关闭异常，读关闭空零"
+    ]
+  },
+  {
+    "question": "向channel发送数据和从channel读数据的流程是什么样的？",
+    "category": "concurrency",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "发送流程：优先唤醒recvq中的goroutine直接传数据；缓冲有空则写入；否则阻塞当前goroutine到sendq",
+      "接收流程：优先唤醒sendq中的goroutine取数据；缓冲有数据则读取；否则阻塞当前goroutine到recvq",
+      "无缓冲channel：发送和接收直接配对，无中间缓冲",
+      "有缓冲channel：先使用缓冲，缓冲满/空时才阻塞",
+      "操作完成后唤醒对应的阻塞goroutine"
+    ]
+  },
+  {
+    "question": "channel在什么情况下会引起资源泄漏？",
+    "category": "concurrency",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "goroutine操作channel后处于阻塞状态",
+      "channel始终处于满或空的状态无法改变",
+      "阻塞的goroutine无法被垃圾回收",
+      "无goroutine引用的channel会被GC回收，不泄漏"
+    ]
+  },
+  {
+    "question": "进程、线程、协程有什么区别？",
+    "category": "concurrency",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "进程是应用启动实例，有独立内存空间",
+      "线程从属进程，是CPU调度基本单位，共享进程资源",
+      "协程是轻量级线程，由用户态调度器管理",
+      "协程创建销毁开销远低于线程，并发度更高"
+    ]
+  },
+  {
+    "question": "什么是GMP？其调度流程是怎样的？",
+    "category": "concurrency",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "G=goroutine，P=上下文处理器，M=系统线程",
+      "G创建后先加入当前P的本地队列（≤256个），满则入全局队列",
+      "M绑定P后从本地队列取G执行，队空则偷取其他P或全局队列的G",
+      "G阻塞时P解绑M，重新绑定空闲M或创建新M"
+    ]
+  },
+  {
+    "question": "G、P、M的个数分别由什么决定？",
+    "category": "concurrency",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "G个数理论无上限，实际受内存限制",
+      "P个数由GOMAXPROCS决定，默认等于逻辑CPU数",
+      "M个数动态创建销毁，默认最大限制约10000",
+      "M数量可通过debug.SetMaxThreads调整（不建议生产使用）"
+    ]
+  },
+  {
+    "question": "GMP模型中的work stealing（工作量窃取）机制是什么？",
+    "category": "concurrency",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "P本地队列为空时触发窃取",
+      "优先从全局队列窃取，再从其他P的本地队列窃取一半G",
+      "减少P空转，提高CPU资源利用率",
+      "避免全局队列锁竞争，提升并发性能"
+    ]
+  },
+  {
+    "question": "GMP模型中的hand off（移交）机制是什么？",
+    "category": "concurrency",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "M因G阻塞（如系统调用）时触发",
+      "阻塞的M释放绑定的P",
+      "P移交至其他空闲M或新创建的M",
+      "确保P上的G能继续执行，不阻塞整体调度"
+    ]
+  },
+  {
+    "question": "为什么GMP模型中需要P？",
+    "category": "concurrency",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "P维护本地队列，减少全局队列锁竞争",
+      "关联本地队列与Work Stealing机制，提升调度效率",
+      "避免M动态增减导致本地队列管理复杂",
+      "M阻塞时P可移交，保障任务连续性"
+    ]
+  },
+  {
+    "question": "Go调度器的抢占式调度是如何实现的？",
+    "category": "concurrency",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "结合协作式抢占与信号量抢占",
+      "goroutine最长占用CPU约10ms，防止饿死",
+      "系统线程调度依赖时钟中断，goroutine调度在用户态实现",
+      "sync包中的阻塞操作会主动让出CPU"
+    ]
+  },
+  {
+    "question": "什么是M0和G0？它们的作用是什么？",
+    "category": "concurrency",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "M0是程序启动后的主线程，全局唯一，负责初始化",
+      "G0是每个M启动时创建的调度协程，无业务逻辑",
+      "G0使用自身栈空间处理调度和系统调用",
+      "M0的G0为全局G0，其他M各有独立G0"
+    ]
+  },
+  {
+    "question": "除了Mutex，还有哪些方式可以安全读写共享变量？",
+    "category": "concurrency",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "通过单个goroutine管理共享变量，其他goroutine用channel通信",
+      "使用信号量（semaphore）实现互斥",
+      "利用sync/atomic包的原子操作",
+      "使用sync.RWMutex读写锁"
+    ]
+  },
+  {
+    "question": "Go如何实现原子操作？原子操作与互斥锁的区别是什么？",
+    "category": "concurrency",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "通过sync/atomic包的Load/Store等函数实现",
+      "原子操作是不可中断的单个操作",
+      "互斥锁用于保护多个操作的原子性",
+      "原子操作开销低于互斥锁，适用于单个变量操作"
+    ]
+  },
+  {
+    "question": "Mutex是悲观锁还是乐观锁？悲观锁和乐观锁是什么？",
+    "category": "concurrency",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "Mutex是悲观锁",
+      "悲观锁：修改前加锁，避免并发冲突",
+      "乐观锁：提交时检测冲突，冲突则返回异常",
+      "悲观锁适用于写多场景，乐观锁适用于读多场景"
+    ]
+  },
+  {
+    "question": "sync.Mutex有几种模式？分别是什么？",
+    "category": "concurrency",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "分为正常模式和饥饿模式",
+      "正常模式：新G可竞争锁，等待者自旋后入队",
+      "饥饿模式：锁直接交给队列头部等待者，新G入队尾",
+      "等待超1毫秒或队列只剩最后一个等待者时切换正常模式"
+    ]
+  },
+  {
+    "question": "sync.RWMutex的特点和使用场景是什么？",
+    "category": "concurrency",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "支持多读单写，读操作并发，写操作互斥",
+      "提供RLock()/RUnlock()读锁，Lock()/Unlock()写锁",
+      "读锁不阻塞读锁，阻塞写锁；写锁阻塞所有读写锁",
+      "适用于读多写少场景，如缓存、配置管理"
+    ]
+  },
+  {
+    "question": "什么是自旋锁？Go中如何实现自旋锁？",
+    "category": "concurrency",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "锁被占用时，请求者循环等待（自旋）而非睡眠",
+      "基于atomic.CompareAndSwapInt32实现状态原子修改",
+      "Lock()循环CAS尝试获取锁，Unlock()原子重置状态",
+      "适用于锁持有时间短、竞争不激烈的场景"
+    ]
+  },
+  {
+    "question": "自旋锁更改失败的情况有哪些？如何解决？",
+    "category": "concurrency",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "锁已被其他goroutine持有、高并发竞争导致",
+      "设置自旋次数限制，超时后进入睡眠",
+      "采用退避策略（如指数退避）减少CPU占用",
+      "竞争激烈时改用互斥锁等同步机制"
+    ]
+  },
+  {
+    "question": "如何解决goroutine自旋占用资源的问题？",
+    "category": "concurrency",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "减少自旋锁使用，优先选择互斥锁/读写锁",
+      "为自旋锁设置最大自旋次数，超时睡眠",
+      "利用Go调度器的抢占式调度，避免长期占用CPU",
+      "通过pprof等工具监控CPU占用，优化锁竞争"
+    ]
+  },
+  {
+    "question": "Go中主协程如何等待其余协程退出？",
+    "category": "concurrency",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "使用sync.WaitGroup：Add()计数，Done()减计数，Wait()阻塞",
+      "通过有缓冲channel：缓冲大小等于协程数，执行完发送信号",
+      "无缓冲channel可保证协程顺序执行，但无法并发",
+      "WaitGroup支持批量等待，channel更灵活控制"
+    ]
+  },
+  {
+    "question": "Go中如何控制并发数？",
+    "category": "concurrency",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "有缓冲channel：缓冲大小即为最大并发数，通过收发控制",
+      "使用第三方协程池（如ants、tunny）",
+      "通过sync.WaitGroup配合channel协同控制",
+      "协程池适用于高并发、任务量大的场景"
+    ]
+  },
+  {
+    "question": "多个goroutine对同一个map写会panic，该异常是否可以用defer捕获？",
+    "category": "concurrency",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "可以通过defer+recover捕获该panic",
+      "捕获后需处理异常（如打印日志、释放资源）",
+      "Go推荐多用error处理，少用panic/recover",
+      "捕获仅一次有效，需避免滥用panic控制流程"
+    ]
+  },
+  {
+    "question": "如何优雅地实现一个goroutine池？",
+    "category": "concurrency",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "基于有缓冲channel控制并发worker数量",
+      "设计任务队列、worker池、结果收集机制",
+      "支持动态扩容、任务超时、优雅关闭",
+      "推荐参考ants等成熟库的底层实现，避免重复造轮"
+    ]
+  },
+  {
+    "question": "sync.Pool的作用、特点和使用场景是什么？",
+    "category": "sync",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "存储复用临时对象，减少内存分配和GC压力",
+      "并发安全，多个goroutine可同时读写",
+      "GC时会自动清理池内所有对象，不可长期存储",
+      "适用于创建开销大、频繁创建销毁的临时对象",
+      "使用前需重置对象状态，避免数据污染"
+    ]
+  },
+  {
+    "question": "Go的垃圾回收（GC）采用什么算法？触发条件是什么？",
+    "category": "gc",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "采用三色标记+混合写屏障算法",
+      "触发条件：内存分配达到阈值、长时间未GC、手动调用runtime.GC()",
+      "核心是追踪存活对象，清除未标记对象",
+      "混合写屏障机制减少STW时间，提升并发性能"
+    ]
+  },
+  {
+    "question": "常见的GC算法有哪些？各自的特点是什么？",
+    "category": "gc",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "引用计数：实时回收，无法处理循环引用",
+      "标记-清除：解决循环引用，需STW",
+      "节点复制：无内存碎片，浪费一半内存",
+      "分代收集：按生命周期分代，回收效率高，算法复杂"
+    ]
+  },
+  {
+    "question": "Go垃圾回收机制的演变过程是怎样的？",
+    "category": "gc",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "Go1.3前：普通标记清除，全程STW，效率低",
+      "Go1.5：三色标记法，堆空间写屏障，需STW重新扫描栈",
+      "Go1.8：混合写屏障，栈标记为黑色，无需STW，效率大幅提升",
+      "后续版本：优化Pacer、并行清除，进一步降低延迟"
+    ]
+  },
+  [
+  {
+    "question": "三色标记法的流程是什么？",
+    "category": "gc",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "初始所有对象标记为白色",
+      "从根对象出发，标记可达对象为灰色并加入队列",
+      "取出灰色对象，其引用对象标灰色入队，自身标黑色",
+      "灰色队列为空时，白色对象即为垃圾并回收",
+      "标记前需STW并开启写屏障，标记后关闭"
+    ]
+  },
+  {
+    "question": "为什么需要三色标记法？",
+    "category": "gc",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "支持增量式垃圾回收，降低STW时间",
+      "解决原生Tracing GC一次性扫描的长暂停问题",
+      "通过灰色中间状态处理并发引用变更",
+      "允许用户程序与标记过程并发执行"
+    ]
+  },
+  {
+    "question": "Go1.8及以后的混合写屏障规则是什么？",
+    "category": "gc",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "结合插入写屏障和删除写屏障的优点",
+      "插入指针时，白色对象标记为灰色",
+      "删除指针时，灰色/白色对象重新标记为灰色",
+      "栈不监控但策略无需重新扫描栈",
+      "显著减少垃圾回收的STW时间"
+    ]
+  },
+  {
+    "question": "插入写屏障和删除写屏障的规则分别是什么？",
+    "category": "gc",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "插入写屏障：新增指针指向白色对象时，将其标为灰色",
+      "删除写屏障：删除指针指向灰色/白色对象时，将其重标为灰色",
+      "插入写屏障防止遗漏可达对象",
+      "删除写屏障防止误回收仍被引用的对象"
+    ]
+  },
+  {
+    "question": "GC的触发时机有哪些？",
+    "category": "gc",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "堆内存分配达到阈值（gcTriggerHeap）",
+      "距离上一次GC超过2分钟（gcTriggerTime）",
+      "未开启GC时触发启动（gcTriggerCycle）",
+      "手动调用runtime.GC()主动触发"
+    ]
+  },
+  {
+    "question": "Go中什么情况下会发生内存泄漏？如何定位排查？",
+    "category": "memory",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "goroutine阻塞未退出、互斥锁未释放或死锁",
+      "time.Ticker未调用Stop方法",
+      "字符串/切片截取导致的临时内存泄漏",
+      "函数数组传参引发高并发下的临时泄漏",
+      "排查工具：pprof、leaktest、goleak"
+    ]
+  },
+  {
+    "question": "什么是内存逃逸？Go中什么情况下会发生内存逃逸？",
+    "category": "compilation",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "本该分配到栈上的变量跑到堆上的现象",
+      "返回局部变量的指针或引用",
+      "向channel发送指针类型数据",
+      "闭包中引用包外的变量",
+      "切片/映射中存储指针或引用类型",
+      "切片扩容后长度过大、接口上调用方法"
+    ]
+  },
+  {
+    "question": "Go是如何分配内存的？",
+    "category": "memory",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "启动时申请大块内存，划分spans、bitmap、arena区域",
+      "arena区域按页划分成小块内存",
+      "span管理一个或多个连续的页",
+      "mcentral管理多个span，供线程申请使用",
+      "mcache为线程私有资源，资源来源于mcentral"
+    ]
+  },
+  {
+    "question": "Channel分配在栈上还是堆上？哪些对象分配在堆上，哪些对象分配在栈上？",
+    "category": "memory",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "Channel固定分配在堆上",
+      "栈上分配：函数内无外部引用的局部变量",
+      "堆上分配：有外部引用、大对象、发生逃逸的变量",
+      "分配位置由编译器的逃逸分析决定"
+    ]
+  },
+  {
+    "question": "什么是大对象、小对象和Tiny对象？小对象多了为什么会造成GC压力？",
+    "category": "memory",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "小对象≤32KB，大对象>32KB，Tiny对象1-16Byte且无指针",
+      "小对象过多导致GC三色标记消耗大量CPU",
+      "频繁分配小对象会触发更频繁的GC",
+      "小对象分配时可能频繁触发span申请，间接增加GC负担"
+    ]
+  },
+  {
+    "question": "逃逸分析是怎么进行的？其核心原则是什么？",
+    "category": "compilation",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "编译器静态分析指针的动态范围",
+      "核心原则：函数返回后无引用则分配栈，有引用则分配堆",
+      "优先栈分配以减少GC压力，栈分配比堆分配更快",
+      "取地址的变量不一定逃逸，需结合引用生命周期判断"
+    ]
+  },
+  {
+    "question": "GoRoot和GoPath的作用是什么？",
+    "category": "compilation",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "GoRoot：Go语言的安装路径，存放标准库、编译器等",
+      "GoPath：工作空间路径，可设置多个目录",
+      "GoPath下需包含src（源码）、pkg（库文件）、bin（可执行文件）",
+      "GoPath用于编译器查找源码和存放编译产物"
+    ]
+  },
+  {
+    "question": "Go编译链接的过程是什么？",
+    "category": "compilation",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "源码文件（.go）→编译器→汇编代码（.s）",
+      "汇编代码→汇编器→可重定位目标文件（.o）",
+      "目标文件+依赖库→链接器→可执行文件",
+      "编译器源码位于src/cmd/compile，链接器位于src/cmd/link"
+    ]
+  },
+  {
+    "question": "Go中go build、go install、go run的区别是什么？",
+    "category": "compilation",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "go build：编译源码及依赖，生成可执行文件，无安装步骤",
+      "go install：编译并安装，库文件存pkg目录，可执行文件存bin目录",
+      "go run：编译并直接运行命令源码文件，不保留可执行文件",
+      "go build忽略_test.go测试文件"
+    ]
+  },
+  {
+    "question": "Gin框架的核心特性有哪些？",
+    "category": "general",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "基于Radix树的高效路由，无反射",
+      "支持中间件机制，预处理请求",
+      "捕获HTTP请求中的panic并恢复",
+      "内置JSON验证、路由组、错误管理",
+      "支持JSON/XML/HTML内置渲染"
+    ]
+  },
+  {
+    "question": "Gin的路由机制是什么？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "通过*gin.Engine对象定义路由，支持HTTP各类请求方法",
+      "支持路由分组（Group），便于组织复杂路由",
+      "支持动态路由参数，自动提取路径参数",
+      "更具体的路由定义优先匹配",
+      "可绑定中间件到路由或路由组"
+    ]
+  },
+  {
+    "question": "Gin框架中请求从接收至响应的流程是什么？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "Engine组件接收HTTP请求",
+      "根据URL和请求方法匹配对应的路由处理函数",
+      "依次执行路由关联的中间件预处理",
+      "调用路由处理函数处理业务逻辑",
+      "通过gin.Context生成响应并返回客户端"
+    ]
+  },
+  {
+    "question": "GORM的核心特性有哪些？",
+    "category": "general",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "结构体与数据库表自动映射",
+      "支持链式调用实现增删改查",
+      "支持事务、预加载和关联关系（一对一/一对多/多对多）",
+      "自动校验客户端请求参数合法性",
+      "支持原生SQL语句混合使用"
+    ]
+  },
+  {
+    "question": "GORM Gen的作用和特点是什么？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "GORM的代码生成插件，根据数据库表结构生成代码",
+      "自动生成结构体和DAO层增删改查方法",
+      "表结构变更时可重新生成，保持代码与数据库同步",
+      "增强类型安全，减少类型转换错误",
+      "支持复杂查询（联合查询、分页等）生成"
+    ]
+  },
+  {
+    "question": "遇到CPU不高但内存高的场景，如何排查？",
+    "category": "general",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "系统工具（top/htop/pmap）查看进程内存分布",
+      "pprof生成堆内存快照，分析高占用对象",
+      "检查Goroutine泄漏（pprof goroutine）",
+      "使用leaktest/goleak工具检测内存泄漏",
+      "排查未释放资源（文件句柄、数据库连接、缓存）"
+    ]
+  },
+  {
+    "question": "如何实时查看K8s中Pod的内存占用？",
+    "category": "general",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "kubectl top pod [-n 命名空间] 查看实时资源使用",
+      "kubectl describe pod 查看资源请求和限制",
+      "Kubernetes Dashboard可视化监控",
+      "Prometheus+Grafana构建自定义监控面板",
+      "进入容器内使用top/free命令查看"
+    ]
+  },
+  {
+    "question": "go-zero框架的核心特性是什么？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "集成微服务治理能力，支持级联超时、限流",
+      "内置自适应熔断、自适应降载机制",
+      "goctl工具一键生成多端代码，可直接运行",
+      "自动校验客户端请求参数合法性",
+      "提供丰富的并发工具包和微服务治理中间件"
+    ]
+  },
+  {
+    "question": "Hertz框架的特点有哪些？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "基于自研Netpoll网络库，高性能低时延",
+      "高易用性，API设计简洁，快速上手",
+      "支持HTTP1.1、ALPN协议，可自定义协议",
+      "分层设计，高扩展性，支持网络层切换",
+      "字节跳动内部广泛使用，稳定性经实战验证"
+    ]
+  },
+  {
+    "question": "Kitex框架的核心特点是什么？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "基于Netpoll网络库，RPC性能优异",
+      "支持多消息协议（Thrift、Protobuf、gRPC）",
+      "内置服务注册/发现、负载均衡等治理能力",
+      "支持PingPong、Oneway、双向Streaming",
+      "内置代码生成工具，支持脚手架生成"
+    ]
+  },
+  {
+    "question": "Kitex支持哪些消息协议和传输协议？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "消息协议：Thrift、Kitex Protobuf、gRPC",
+      "传输协议：TTHeader、HTTP2",
+      "TTHeader适配Thrift、Kitex Protobuf",
+      "HTTP2主要适配gRPC协议",
+      "支持自定义扩展消息协议和传输协议"
+    ]
+  },
+  {
+    "question": "GORM如何支持事务操作？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "通过db.Begin()开启事务，返回tx对象",
+      "事务内操作通过tx对象执行，支持链式调用",
+      "tx.Commit()提交事务，tx.Rollback()回滚",
+      "支持SavePoint、RollbackToSavePoint设置保存点",
+      "支持自动事务：使用Transaction函数传入回调"
+    ]
+  },
+  {
+    "question": "GORM支持哪些关联关系？如何实现？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "支持一对一、一对多、多对多关联关系",
+      "通过结构体标签（gorm:\"foreignKey\"）定义关联",
+      "一对一：HasOne/BelongsTo，指定外键关联",
+      "一对多：HasMany/BelongsTo，通过外键关联集合",
+      "多对多：BelongsToMany，自动生成中间表或指定中间表"
+    ]
+  },
+  {
+    "question": "go-zero的goctl工具的作用是什么？",
+    "category": "general",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "根据API定义文件一键生成多端代码",
+      "支持生成Go、iOS、Android等多语言代码",
+      "生成的代码可直接运行，无需额外配置",
+      "简化微服务开发流程，提高开发效率",
+      "保证代码一致性，降低协作成本"
+    ]
+  },
+  {
+    "question": "Hertz支持哪些网络层切换能力？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "默认使用自研Netpoll网络库",
+      "支持切换为Golang原生网络库",
+      "支持以插件形式扩展自定义网络库",
+      "可根据场景灵活选择适配的网络库",
+      "切换过程无需大幅修改业务代码"
+    ]
+  },
+  {
+    "question": "Kitex支持哪些消息类型？",
+    "category": "general",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "支持PingPong心跳消息类型",
+      "支持Oneway单向消息类型（仅Thrift协议）",
+      "支持双向Streaming消息类型（仅gRPC协议）",
+      "消息类型适配对应协议特性",
+      "满足不同场景下的RPC通信需求"
+    ]
+  },
+  {
+    "question": "GORM中如何使用原生SQL语句？",
+    "category": "general",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "使用db.Raw()方法执行原生SQL",
+      "通过Scan()将结果扫描到结构体/切片",
+      "支持占位符（?）传递参数，防止SQL注入",
+      "使用db.Exec()执行无返回结果的SQL（如INSERT/UPDATE）",
+      "可结合GORM链式调用设置表名、条件等"
+    ]
+  },
+  {
+    "question": "go-zero的微服务治理能力包含哪些？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "级联超时控制，避免服务级联阻塞",
+      "自适应限流、熔断，保护服务稳定性",
+      "自适应降载，应对流量峰值",
+      "支持服务注册/发现、负载均衡",
+      "微服务治理中间件可无缝集成其他框架"
+    ]
+  },
+  {
+    "question": "Hertz框架的高扩展性体现在哪些方面？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "分层设计，提供丰富的扩展接口",
+      "支持自定义协议解析逻辑",
+      "可扩展网络库实现，支持插件形式集成",
+      "中间件机制灵活，可自定义请求处理逻辑",
+      "支持自定义序列化/反序列化方式"
+    ]
+  },
+  {
+    "question": "Kitex的服务治理模块包含哪些功能？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "服务注册与发现，支持多种注册中心",
+      "负载均衡，提供多种负载均衡策略",
+      "熔断、限流、重试机制，保障服务可用性",
+      "监控、链路跟踪、日志收集",
+      "诊断工具，便于问题排查"
+    ]
+  },
+  {
+    "question": "GORM Gen的适用场景是什么？",
+    "category": "general",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "数据库表数量多的大型项目",
+      "数据库表结构频繁变更的场景",
+      "需要快速生成DAO层代码的项目",
+      "追求类型安全，减少手动编码错误",
+      "需要复杂查询代码生成的场景"
+    ]
+  }
+]
+]

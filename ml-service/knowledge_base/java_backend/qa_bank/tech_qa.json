@@ -1,0 +1,1080 @@
+[
+  {
+    "question": "面向对象的四大特性是什么？",
+    "category": "Java基础",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "封装：隐藏内部实现细节，对外暴露接口",
+      "继承：子类继承父类，复用代码并扩展功能",
+      "多态：同一方法在不同对象上有不同表现（重载/重写）",
+      "抽象：提取共性特征，定义抽象类或接口"
+    ]
+  },
+  {
+    "question": "== 和 equals() 的区别？",
+    "category": "Java基础",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "==：基本类型比较值，引用类型比较内存地址",
+      "equals()：Object类默认比较地址，需重写后比较内容（如String、Integer）",
+      "重写equals()必须重写hashCode()，保证相等对象哈希值相同"
+    ]
+  },
+  {
+    "question": "String、StringBuffer、StringBuilder 的区别？",
+    "category": "Java基础",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "String：不可变字符序列，线程安全，性能低（每次修改创建新对象）",
+      "StringBuffer：可变字符序列，线程安全（synchronized），性能中等",
+      "StringBuilder：可变字符序列，非线程安全，性能高（JDK1.5+）",
+      "使用场景：String适用于内容不变，StringBuffer适用于多线程频繁修改，StringBuilder适用于单线程频繁修改"
+    ]
+  },
+  {
+    "question": "为什么重写 equals() 必须重写 hashCode()？",
+    "category": "Java基础",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "保证相等对象（equals返回true）的哈希值必须相同",
+      "避免在HashSet、HashMap等集合中出现逻辑错误（相等对象被当作不同key）",
+      "哈希值不同的对象，equals一定不同；哈希值相同，equals不一定相同"
+    ]
+  },
+  {
+    "question": "ArrayList 和 LinkedList 的区别？",
+    "category": "集合框架",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "ArrayList：基于动态数组，连续内存，随机访问O(1)，插入删除O(n)（需移动元素）",
+      "LinkedList：基于双向链表，非连续内存，随机访问O(n)，插入删除O(1)（仅修改指针）",
+      "ArrayList适合查询多，LinkedList适合插入删除多",
+      "两者均非线程安全，多线程需用Collections.synchronizedList()或CopyOnWriteArrayList"
+    ]
+  },
+  {
+    "question": "HashMap 的底层数据结构（JDK 1.8）？",
+    "category": "集合框架",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "数组+链表+红黑树，数组是主体，链表解决哈希冲突",
+      "链表长度≥8且数组长度≥64时，链表转为红黑树（提升查询效率）",
+      "红黑树节点数≤6时，转回链表",
+      "哈希冲突采用链地址法，通过hash(key) & (length-1)定位数组索引"
+    ]
+  },
+  {
+    "question": "HashMap 的 put 流程是什么？",
+    "category": "集合框架",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "计算key的哈希值，扰动处理后定位数组索引",
+      "数组位置为空，直接创建Node插入",
+      "数组位置不为空，比较key：相同则覆盖value，不同则遍历链表/红黑树",
+      "链表遍历到尾插入，插入后检查是否需转红黑树；红黑树按规则插入",
+      "插入后检查size是否超过阈值（负载因子0.75*容量），超过则扩容（2倍）"
+    ]
+  },
+  {
+    "question": "HashMap 为什么数组长度必须是 2 的幂？",
+    "category": "集合框架",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "通过hash & (length-1)替代取模运算，提升性能（位运算比取模快）",
+      "保证哈希值分布更均匀，减少冲突（length-1二进制全1）",
+      "扩容时重新计算索引更高效，原索引或原索引+旧容量"
+    ]
+  },
+  {
+    "question": "ConcurrentHashMap 如何保证线程安全（JDK 1.8）？",
+    "category": "集合框架",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "数组+链表+红黑树结构，与HashMap一致",
+      "使用CAS + synchronized保证并发安全，锁粒度为数组节点（Node）",
+      "空节点用CAS插入，非空节点用synchronized锁住后操作",
+      "size计数通过CounterCell分段计数，避免竞争，提升并发性能"
+    ]
+  },
+  {
+    "question": "什么是泛型擦除？",
+    "category": "Java基础",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "泛型仅在编译期有效，运行时会擦除类型信息，替换为Object或上限类型",
+      "避免生成过多类，节省内存，兼容旧版本Java",
+      "限制：不能创建泛型数组、不能实例化泛型类型、基本类型不能作为泛型参数"
+    ]
+  },
+  {
+    "question": "反射的应用场景有哪些？",
+    "category": "Java基础",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "动态加载类、创建对象（如Spring IOC）",
+      "调用私有方法、访问私有字段（如框架扩展）",
+      "获取类的注解、泛型信息（如ORM框架映射）",
+      "动态代理实现（如Spring AOP）"
+    ]
+  },
+  {
+    "question": "Error 和 Exception 的区别？",
+    "category": "Java基础",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "Error：系统级错误，程序无法处理（如OOM、StackOverflowError）",
+      "Exception：程序可处理的异常，分为受检异常（需catch/throws）和非受检异常（RuntimeException及其子类）",
+      "受检异常：编译期检查（如IOException、SQLException）",
+      "非受检异常：运行期异常（如NullPointerException、IndexOutOfBoundsException）"
+    ]
+  },
+  {
+    "question": "JDK 8 新特性有哪些？",
+    "category": "Java基础",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "Lambda表达式：函数式编程，简化匿名内部类",
+      "Stream API：集合流式操作，支持过滤、映射、归约等",
+      "接口默认方法和静态方法：接口可包含方法实现",
+      "Optional类：避免空指针异常",
+      "新日期时间API：LocalDate、LocalTime、LocalDateTime等，替代Date/Calendar"
+    ]
+  },
+  {
+    "question": "Stream 流中 map 和 flatMap 的区别？",
+    "category": "Java基础",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "map：一对一映射，每个元素转换为另一个元素，返回Stream<R>",
+      "flatMap：一对多映射，每个元素转换为流，再将所有流合并为一个流",
+      "map适用于简单转换，flatMap适用于嵌套集合扁平化（如List<List<String>>转List<String>）"
+    ]
+  },
+  {
+    "question": "JDK 21 的虚拟线程（Virtual Threads）是什么？",
+    "category": "Java基础",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "轻量级线程，由JVM调度，不直接绑定操作系统线程",
+      "创建成本低、数量多（可百万级），阻塞时自动让出底层线程",
+      "简化并发编程，无需线程池即可处理高并发",
+      "通过Thread.startVirtualThread()或Executors.newVirtualThreadPerTaskExecutor()使用"
+    ]
+  },
+  {
+    "question": "JDK 14 引入的 Record 类是什么？",
+    "category": "Java基础",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "不可变数据类，自动生成构造方法、equals()、hashCode()、toString()",
+      "通过record关键字定义，属性在构造参数中声明，自动为private final",
+      "适用于简单数据传输对象（DTO），减少样板代码",
+      "不能继承其他类，默认继承java.lang.Record"
+    ]
+  },
+  {
+    "question": "Java 中如何实现深拷贝和浅拷贝？",
+    "category": "Java基础",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "浅拷贝：仅复制对象引用，原对象和拷贝对象共享引用类型属性（实现Cloneable接口，重写clone()，调用super.clone()）",
+      "深拷贝：复制对象及所有引用属性，原对象和拷贝对象完全独立（序列化/反序列化、手动递归复制、第三方库如Apache Commons Lang的SerializationUtils）",
+      "注意：clone()默认是浅拷贝，需手动处理引用类型属性实现深拷贝"
+    ]
+  },
+  {
+    "question": "ThreadLocal 的底层原理与内存泄漏问题？",
+    "category": "并发编程",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "每个Thread维护一个ThreadLocalMap，key为ThreadLocal（弱引用），value为线程本地值",
+      "弱引用key：ThreadLocal无外部引用时，GC会回收key，避免ThreadLocal本身泄漏",
+      "内存泄漏原因：value为强引用，若线程不终止，value不会被回收，需手动调用remove()",
+      "最佳实践：使用完ThreadLocal后及时remove()，避免线程池场景下的泄漏"
+    ]
+  },
+  {
+    "question": "Java IO 模型有哪些？",
+    "category": "Java基础",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "BIO（阻塞IO）：同步阻塞，每个连接一个线程，适用于连接数少的场景",
+      "NIO（非阻塞IO）：同步非阻塞，基于Selector、Channel、Buffer，单线程可处理多个连接，适用于连接数多但数据量小的场景",
+      "AIO（异步IO）：异步非阻塞，基于回调，适用于连接数多且数据量大的场景",
+      "Netty是基于NIO的高性能网络框架，广泛应用于RPC、消息队列等"
+    ]
+  },
+  {
+    "question": "序列化与反序列化？transient 关键字的作用？",
+    "category": "Java基础",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "序列化：将对象转为字节流，便于存储或传输（实现Serializable接口）",
+      "反序列化：将字节流恢复为对象",
+      "transient：修饰的字段不参与序列化，反序列化后为默认值（如null、0）",
+      "注意：静态变量不参与序列化，serialVersionUID用于验证版本一致性"
+    ]
+  },
+  {
+    "question": "动态代理的两种实现方式？",
+    "category": "Java基础",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "JDK动态代理：基于接口，通过Proxy.newProxyInstance()生成代理类，调用InvocationHandler.invoke()处理",
+      "CGLIB动态代理：基于继承，通过ASM字节码生成子类，不能代理final类/方法，调用MethodInterceptor.intercept()处理",
+      "Spring AOP默认使用JDK动态代理（目标类有接口），否则使用CGLIB"
+    ]
+  },
+  {
+    "question": "JVM 内存结构是怎样的？",
+    "category": "JVM",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "程序计数器：线程私有，记录当前执行字节码行号，无OOM",
+      "虚拟机栈：线程私有，每个方法执行创建栈帧，存储局部变量表、操作数栈等，StackOverflowError（栈深过大）、OOM（栈扩展失败）",
+      "本地方法栈：线程私有，为Native方法服务，类似虚拟机栈",
+      "堆：线程共享，存储对象实例，GC主要区域，分为年轻代（Eden+S0+S1）、老年代",
+      "方法区：线程共享，存储类信息、常量、静态变量等，JDK8后用元空间（Metaspace）替代，直接使用本地内存"
+    ]
+  },
+  {
+    "question": "垃圾回收算法有哪些？",
+    "category": "JVM",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "标记-清除：先标记垃圾，再清除，效率低，产生内存碎片",
+      "复制：将存活对象复制到新区域，清空原区域，无碎片，需额外空间（年轻代Eden+S0/S1）",
+      "标记-整理：标记存活对象，向一端移动并清空边界外区域，无碎片，移动成本高（老年代）",
+      "分代收集：年轻代用复制，老年代用标记-清除或标记-整理"
+    ]
+  },
+  {
+    "question": "G1 和 CMS 垃圾收集器的区别？",
+    "category": "JVM",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "CMS：老年代收集器，标记-清除，低延迟，并发标记+并发清除，产生内存碎片，JDK9后逐步被G1替代",
+      "G1：整堆收集器，分Region（年轻代+老年代），标记-整理+复制，可预测停顿时间，无内存碎片，JDK9+默认",
+      "G1优势：可设置最大停顿时间，优先回收垃圾多的Region，适合大内存、低延迟场景"
+    ]
+  },
+  {
+    "question": "synchronized 和 Lock 的区别？",
+    "category": "并发编程",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "synchronized：关键字，JVM实现，自动加锁解锁，可重入，非公平，不可中断，适合简单同步",
+      "Lock：接口，代码实现，需手动lock()/unlock()，可重入（ReentrantLock），可公平/非公平，可中断，可尝试获取锁，适合复杂同步",
+      "Lock优势：更灵活，支持条件变量（Condition），可超时获取锁"
+    ]
+  },
+  {
+    "question": "volatile 关键字的作用？",
+    "category": "并发编程",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "保证可见性：一个线程修改变量，其他线程立即可见（禁止CPU缓存，直接读写主内存）",
+      "禁止指令重排序：通过内存屏障保证指令执行顺序",
+      "不保证原子性：复合操作（如count++）仍需synchronized或原子类",
+      "适用场景：状态标记（如boolean flag）、双重检查锁定（DCL）单例"
+    ]
+  },
+  {
+    "question": "线程池的核心参数有哪些？",
+    "category": "并发编程",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "corePoolSize：核心线程数，即使空闲也保留",
+      "maximumPoolSize：最大线程数，线程池能容纳的最大线程",
+      "keepAliveTime：非核心线程空闲存活时间",
+      "workQueue：任务队列，存储等待执行的任务（如ArrayBlockingQueue、LinkedBlockingQueue）",
+      "threadFactory：线程工厂，创建线程",
+      "handler：拒绝策略，任务队列满且线程数达最大时的处理方式"
+    ]
+  },
+  {
+    "question": "常见的拒绝策略有哪些？",
+    "category": "并发编程",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "AbortPolicy：默认，直接抛出RejectedExecutionException",
+      "CallerRunsPolicy：由调用线程执行任务",
+      "DiscardPolicy：直接丢弃任务，不抛异常",
+      "DiscardOldestPolicy：丢弃队列最老的任务，重新尝试执行当前任务",
+      "自定义策略：实现RejectedExecutionHandler接口"
+    ]
+  },
+  {
+    "question": "Spring IOC 和 AOP 的理解？",
+    "category": "Spring",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "IOC（控制反转）：将对象创建和依赖关系交给Spring容器管理，降低耦合（DI依赖注入是IOC的实现方式）",
+      "AOP（面向切面编程）：将横切关注点（如日志、事务、权限）从业务逻辑中分离，通过动态代理实现（JDK/CGLIB）",
+      "AOP核心概念：切面（Aspect）、连接点（JoinPoint）、切入点（Pointcut）、通知（Advice）、目标对象（Target）、织入（Weaving）"
+    ]
+  },
+  {
+    "question": "Spring Bean 的生命周期？",
+    "category": "Spring",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "实例化：调用构造方法创建Bean实例",
+      "属性赋值：注入依赖（DI）",
+      "初始化前：调用BeanPostProcessor.postProcessBeforeInitialization()",
+      "初始化：调用InitializingBean.afterPropertiesSet()或自定义init-method",
+      "初始化后：调用BeanPostProcessor.postProcessAfterInitialization()（AOP在此织入）",
+      "使用：Bean就绪，供应用使用",
+      "销毁：调用DisposableBean.destroy()或自定义destroy-method"
+    ]
+  },
+  {
+    "question": "@Transactional 失效的场景？",
+    "category": "Spring",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "方法非public：@Transactional仅对public方法有效",
+      "类内部调用：同一类中方法调用，不经过代理对象，事务失效",
+      "数据库不支持事务：如MyISAM引擎",
+      "异常被捕获：方法内catch异常未抛出，事务不会回滚",
+      "异常类型不匹配：默认回滚RuntimeException和Error，受检异常需指定rollbackFor",
+      "事务传播机制设置不当：如NOT_SUPPORTED、NEVER"
+    ]
+  },
+  {
+    "question": "Spring Boot 自动配置的实现原理？",
+    "category": "Spring Boot",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "@EnableAutoConfiguration：开启自动配置，导入AutoConfigurationImportSelector",
+      "AutoConfigurationImportSelector：读取META-INF/spring.factories（或META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports）中的自动配置类",
+      "条件注解：@ConditionalOnClass、@ConditionalOnMissingBean等，按需加载配置类",
+      "绑定配置属性：@ConfigurationProperties绑定application.yml/properties中的配置"
+    ]
+  },
+  {
+    "question": "CAP 理论和 BASE 理论？",
+    "category": "分布式",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "CAP：一致性（Consistency）、可用性（Availability）、分区容错性（Partition Tolerance），三者最多同时满足两个，分布式系统必须保证P",
+      "CP：保证一致性和分区容错性，如ZooKeeper、HBase",
+      "AP：保证可用性和分区容错性，如Eureka、Cassandra",
+      "BASE：基本可用（Basically Available）、软状态（Soft State）、最终一致性（Eventually Consistent），是CAP的折中"
+    ]
+  },
+  {
+    "question": "分布式事务的解决方案？",
+    "category": "分布式",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "2PC（两阶段提交）：强一致性，阻塞式，性能低，易单点故障",
+      "3PC（三阶段提交）：改进2PC，减少阻塞，仍有一致性问题",
+      "TCC（Try-Confirm-Cancel）：业务层面实现，Try预留资源，Confirm确认，Cancel回滚，性能高，需处理幂等",
+      "本地消息表+MQ：最终一致性，本地事务记录消息，MQ异步投递",
+      "Seata：阿里开源，支持AT（自动模式）、TCC、SAGA、XA，易用性高"
+    ]
+  },
+  {
+    "question": "Redis 的数据类型及应用场景？",
+    "category": "缓存/数据库",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "String：字符串/整数/浮点数，缓存、计数器、分布式锁",
+      "Hash：键值对集合，对象存储、购物车",
+      "List：有序字符串列表，消息队列、最新列表",
+      "Set：无序唯一集合，去重、交集/并集/差集（如共同关注）",
+      "ZSet：有序唯一集合，带分数，排行榜、延迟队列",
+      "Bitmap：位操作，签到、统计在线用户",
+      "HyperLogLog：基数统计，UV统计",
+      "Geo：地理位置，附近的人"
+    ]
+  },
+  {
+    "question": "Redis 持久化机制 RDB 和 AOF 的区别？",
+    "category": "缓存/数据库",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "RDB：快照持久化，保存某一时刻数据到二进制文件，恢复快，文件小，可能丢数据（最后一次快照后）",
+      "AOF：追加日志持久化，保存写命令，数据更安全，文件大，恢复慢",
+      "AOF重写：定期压缩AOF文件，减少体积",
+      "混合持久化：RDB+AOF，RDB做全量，AOF做增量，兼顾性能和安全（Redis4.0+）"
+    ]
+  },
+  {
+    "question": "Redis 缓存穿透、缓存击穿、缓存雪崩的解决方案？",
+    "category": "缓存/数据库",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "缓存穿透：查询不存在数据，缓存和DB都无，请求直接打DB。解决方案：布隆过滤器、缓存空值、接口校验",
+      "缓存击穿：热点key过期，大量请求打DB。解决方案：设置key永不过期、互斥锁（重建缓存时只一个线程去DB）",
+      "缓存雪崩：大量key同时过期，大量请求打DB。解决方案：过期时间加随机值、缓存集群、多级缓存、熔断降级"
+    ]
+  },
+  {
+    "question": "MySQL 索引的数据结构？B+树和B树的区别？",
+    "category": "数据库",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "MySQL InnoDB索引使用B+树，MyISAM也用B+树但数据存储方式不同",
+      "B树：节点存数据，查询不稳定（可能在非叶子节点找到），范围查询需中序遍历",
+      "B+树：非叶子节点仅存索引，数据都在叶子节点，查询稳定，叶子节点用链表连接，范围查询高效",
+      "B+树优势：磁盘IO更少（非叶子节点小，一次读入更多索引）、范围查询快、全表扫描快"
+    ]
+  },
+  {
+    "question": "MySQL 聚簇索引和非聚簇索引的区别？",
+    "category": "数据库",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "聚簇索引：索引和数据在一起，叶子节点存整行数据，InnoDB主键索引是聚簇索引，一个表只有一个聚簇索引",
+      "非聚簇索引：索引和数据分离，叶子节点存主键值，InnoDB普通索引是非聚簇索引，需回表（通过主键值去聚簇索引查数据）",
+      "覆盖索引：非聚簇索引包含查询所需所有字段，无需回表，提升性能"
+    ]
+  },
+  {
+    "question": "MySQL 事务的四大特性（ACID）？",
+    "category": "数据库",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "原子性（Atomicity）：事务是不可分割的整体，要么全成功，要么全失败（undo log实现）",
+      "一致性（Consistency）：事务执行前后，数据从一个一致状态到另一个一致状态（其他特性保障）",
+      "隔离性（Isolation）：并发事务之间互不干扰（锁、MVCC实现）",
+      "持久性（Durability）：事务提交后，数据永久保存（redo log实现）"
+    ]
+  },
+  {
+    "question": "MySQL 事务隔离级别有哪些？分别解决什么问题？",
+    "category": "数据库",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "读未提交（Read Uncommitted）：可读到其他事务未提交数据，脏读、不可重复读、幻读都可能",
+      "读已提交（Read Committed）：只能读到其他事务已提交数据，解决脏读，存在不可重复读、幻读（Oracle默认）",
+      "可重复读（Repeatable Read）：同一事务内多次读同一数据结果一致，解决脏读、不可重复读，存在幻读（MySQL InnoDB默认，通过MVCC+Next-Key Lock解决幻读）",
+      "串行化（Serializable）：最高隔离级别，事务串行执行，解决所有问题，性能低"
+    ]
+  },
+  {
+    "question": "什么是 MVCC？",
+    "category": "数据库",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "MVCC（多版本并发控制）：通过维护数据历史版本，实现读写不阻塞",
+      "实现：隐藏字段（DB_TRX_ID事务ID、DB_ROLL_PTR回滚指针）、undo log（回滚日志，保存数据旧版本）、Read View（读视图，判断可见性）",
+      "RC隔离级别：每次查询生成新的Read View",
+      "RR隔离级别：事务第一次查询生成Read View，后续复用",
+      "当前读：加锁读（select ... for update），读最新版本；快照读：普通select，读历史版本"
+    ]
+  },
+  {
+    "question": "如何设计一个分布式 ID 生成器？",
+    "category": "分布式",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "UUID：简单，无序，不可读，不适合作为数据库主键",
+      "数据库自增ID：简单，有序，性能有限，单点故障",
+      "Redis自增：高性能，有序，需维护Redis",
+      "雪花算法（Snowflake）：64位long型，1位符号+41位时间戳+10位机器ID+12位序列号，有序，高性能，需解决时钟回拨",
+      "美团Leaf：支持号段模式（数据库）和雪花模式，稳定可靠",
+      "百度UidGenerator：基于雪花，优化时钟回拨，支持自定义workerID"
+    ]
+  },
+  {
+    "question": "如何设计一个秒杀系统？",
+    "category": "分布式",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "前端：页面静态化、按钮置灰、限流（验证码、答题）",
+      "网关：Nginx限流（漏桶/令牌桶）、负载均衡",
+      "服务层：Redis预减库存（原子操作）、消息队列异步下单、分布式锁防止超卖、熔断降级",
+      "数据层：MySQL乐观锁/悲观锁控制库存、分库分表提升性能",
+      "其他：热点数据隔离、监控告警、应急预案"
+    ]
+  },
+  {
+    "question": "消息队列的作用？常见的消息队列有哪些？",
+    "category": "分布式",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "作用：异步解耦、削峰填谷、流量控制、日志收集、事件驱动",
+      "RabbitMQ：AMQP协议，功能完善，可靠性高，吞吐量中等",
+      "Kafka：高吞吐量，分布式，适合日志、大数据场景，消息可能丢失（可配置保证不丢）",
+      "RocketMQ：阿里开源，高吞吐量，支持事务消息、延迟消息，适合电商场景",
+      "ActiveMQ：老牌MQ，支持多种协议，性能一般"
+    ]
+  },
+  {
+    "question": "如何保证消息队列不丢消息？",
+    "category": "分布式",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "生产者端：确认机制（RabbitMQ的confirm、Kafka的acks）、重试机制",
+      "MQ端：持久化（RabbitMQ的exchange/queue/message持久化、Kafka的副本机制）、同步刷盘",
+      "消费者端：手动确认（RabbitMQ的ack、Kafka的手动提交offset）、幂等处理（避免重复消费）",
+      "其他：消息补偿、死信队列处理失败消息"
+    ]
+  },
+  {
+    "question": "如何保证消息队列的幂等性？",
+    "category": "分布式",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "唯一ID+去重表：消息带唯一ID，消费前查去重表，已消费则跳过",
+      "Redis setnx：用唯一ID作为key，setnx成功则消费，失败则跳过",
+      "数据库唯一约束：利用数据库唯一索引防止重复插入",
+      "乐观锁：带版本号，更新时判断版本号",
+      "业务幂等：设计业务逻辑本身幂等（如查询、删除）"
+    ]
+  },
+  {
+    "question": "什么是微服务？微服务的优缺点？",
+    "category": "微服务",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "微服务：将单体应用拆分为多个独立服务，每个服务独立部署、扩展、技术栈灵活",
+      "优点：高内聚低耦合、独立部署扩展、技术栈灵活、故障隔离、团队自治",
+      "缺点：复杂度高（服务治理、分布式事务）、运维成本高、性能开销（网络通信）、数据一致性挑战"
+    ]
+  },
+  {
+    "question": "微服务注册中心有哪些？Eureka 和 Nacos 的区别？",
+    "category": "微服务",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "常见注册中心：Eureka、Nacos、Consul、ZooKeeper",
+      "Eureka：AP，服务端自我保护，客户端缓存，Spring Cloud Netflix组件，已停止维护",
+      "Nacos：CP/AP可选，支持服务注册发现、配置管理，支持DNS、RPC，阿里开源，活跃维护",
+      "Nacos优势：功能更全（配置中心+注册中心）、性能更好、支持K8s集成"
+    ]
+  },
+  {
+    "question": "微服务网关有哪些？Gateway 和 Zuul 的区别？",
+    "category": "微服务",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "常见网关：Spring Cloud Gateway、Zuul、Kong、APISIX",
+      "Zuul1：基于Servlet，同步阻塞，性能低，已停止维护",
+      "Zuul2：基于Netty，异步非阻塞，性能高，但Spring Cloud未集成",
+      "Spring Cloud Gateway：基于Spring5+Reactor+Netty，异步非阻塞，性能高，支持断言、过滤器、限流，Spring Cloud官方推荐"
+    ]
+  },
+  {
+    "question": "什么是熔断？什么是降级？Hystrix 和 Sentinel 的区别？",
+    "category": "微服务",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "熔断：服务故障时，快速失败，防止雪崩（如Hystrix的断路器）",
+      "降级：服务压力大时，关闭非核心服务，保证核心服务可用",
+      "Hystrix：Netflix开源，线程池/信号量隔离，熔断降级，已停止维护",
+      "Sentinel：阿里开源，流量控制、熔断降级、系统保护，支持实时监控、动态规则，更强大灵活"
+    ]
+  },
+  {
+    "question": "设计模式有哪些分类？单例模式的实现方式？",
+    "category": "设计模式",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "分类：创建型（单例、工厂、抽象工厂、建造者、原型）、结构型（适配器、装饰器、代理、外观、桥接、组合、享元）、行为型（策略、模板方法、观察者、迭代器、责任链、命令、备忘录、状态、访问者、中介者、解释器）",
+      "单例模式：保证一个类只有一个实例",
+      "实现方式：饿汉式（类加载时初始化，线程安全，可能浪费内存）、懒汉式（双重检查锁定DCL，volatile+synchronized，线程安全，延迟加载）、静态内部类（延迟加载，线程安全，推荐）、枚举（最简单，线程安全，防止反射/序列化破坏，《Effective Java》推荐）"
+    ]
+  },
+  {
+    "question": "工厂模式和抽象工厂模式的区别？",
+    "category": "设计模式",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "工厂模式：定义创建对象的接口，让子类决定实例化哪个类，一个工厂创建一种产品",
+      "抽象工厂模式：创建相关或依赖对象的家族，一个工厂创建多个产品（产品族）",
+      "适用场景：工厂模式适合单一产品等级结构，抽象工厂适合多个产品等级结构且产品族相关"
+    ]
+  },
+  {
+    "question": "策略模式和模板方法模式的区别？",
+    "category": "设计模式",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "策略模式：定义一系列算法，封装起来，可互换，通过组合实现，运行时选择算法",
+      "模板方法模式：定义算法骨架，将一些步骤延迟到子类，通过继承实现，编译时确定步骤",
+      "适用场景：策略模式适合算法需灵活切换，模板方法适合算法骨架固定，步骤可变"
+    ]
+  },
+  {
+    "question": "如何排查 OOM（OutOfMemoryError）？",
+    "category": "JVM",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "添加JVM参数：-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/path，OOM时自动生成堆转储文件",
+      "分析工具：jvisualvm、Eclipse MAT、jhat，查看堆内存对象分布，定位大对象、泄漏对象",
+      "检查代码：是否有未关闭的资源（流、连接）、是否有死循环、是否有大集合未释放、是否有内存泄漏（如ThreadLocal未remove）",
+      "调整JVM参数：-Xms/-Xmx（堆大小）、-XX:MetaspaceSize/-XX:MaxMetaspaceSize（元空间）"
+    ]
+  },
+  {
+    "question": "JVM 调优参数有哪些？",
+    "category": "JVM",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "堆内存：-Xms（初始堆）、-Xmx（最大堆）、-XX:NewRatio（年轻代/老年代比例）、-XX:SurvivorRatio（Eden/S0/S1比例）",
+      "垃圾收集器：-XX:+UseG1GC（G1）、-XX:+UseZGC（ZGC，低延迟）、-XX:MaxGCPauseMillis（G1最大停顿时间）",
+      "元空间：-XX:MetaspaceSize、-XX:MaxMetaspaceSize",
+      "日志：-XX:+PrintGCDetails、-Xlog:gc*（JDK9+）",
+      "其他：-XX:+HeapDumpOnOutOfMemoryError、-XX:ThreadStackSize（栈大小）"
+    ]
+  },
+  {
+    "question": "HTTP 和 HTTPS 的区别？HTTPS 的工作原理？",
+    "category": "网络",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "HTTP：明文传输，端口80，不安全",
+      "HTTPS：HTTP+SSL/TLS，加密传输，端口443，安全",
+      "HTTPS工作原理：客户端发起请求，服务器返回证书，客户端验证证书，协商加密算法，生成会话密钥，用会话密钥加密通信",
+      "SSL/TLS握手：ClientHello → ServerHello → 证书 → 密钥交换 → Finished"
+    ]
+  },
+  {
+    "question": "TCP 和 UDP 的区别？",
+    "category": "网络",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "TCP：面向连接，可靠传输（三次握手、四次挥手、确认重传、流量控制、拥塞控制），字节流，开销大，适用于文件传输、HTTP等",
+      "UDP：无连接，不可靠传输，数据报，开销小，速度快，适用于视频、语音、直播等实时场景"
+    ]
+  },
+  {
+    "question": "TCP 三次握手和四次挥手的过程？",
+    "category": "网络",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "三次握手：客户端SYN→服务器SYN+ACK→客户端ACK，建立连接",
+      "四次挥手：客户端FIN→服务器ACK→服务器FIN→客户端ACK，关闭连接",
+      "为什么三次握手：防止已失效的连接请求报文段突然又传到服务器，导致错误",
+      "为什么四次挥手：服务器可能还有数据要发送，先ACK确认FIN，再发送FIN"
+    ]
+  },
+  {
+    "question": "什么是 RESTful API？设计原则？",
+    "category": "架构",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "RESTful API：基于REST架构风格的API，使用HTTP动词（GET/POST/PUT/DELETE）操作资源",
+      "设计原则：资源定位（URI）、统一接口（HTTP动词）、无状态、分层系统、按需代码（可选）",
+      "HTTP动词：GET（查询）、POST（新增）、PUT（全量更新）、PATCH（部分更新）、DELETE（删除）",
+      "状态码：200（成功）、201（创建成功）、400（请求错误）、401（未授权）、403（禁止）、404（未找到）、500（服务器错误）"
+    ]
+  },
+  {
+    "question": "如何保证接口的幂等性？",
+    "category": "架构",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "唯一ID：请求带唯一ID，服务端记录已处理ID，重复请求直接返回",
+      "Token机制：请求前先获取Token，请求时携带Token，服务端验证并删除Token",
+      "数据库唯一约束：利用唯一索引防止重复插入",
+      "乐观锁：带版本号，更新时判断版本号",
+      "Redis setnx：用唯一ID作为key，setnx成功则处理，失败则拒绝",
+      "业务幂等：设计业务逻辑本身幂等（如查询、删除、带状态机的更新）"
+    ]
+  },
+  {
+    "question": "什么是分库分表？为什么要分库分表？",
+    "category": "数据库",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "分库分表：将单库单表数据拆分到多库多表，提升性能",
+      "原因：单库单表数据量过大（MySQL单表建议500w-1000w），查询性能下降，存储瓶颈",
+      "分库：垂直分库（按业务拆分）、水平分库（按规则拆分数据到多库）",
+      "分表：垂直分表（按字段拆分）、水平分表（按规则拆分数据到多表）",
+      "中间件：ShardingSphere、MyCat"
+    ]
+  },
+  {
+    "question": "分库分表的分片策略有哪些？",
+    "category": "数据库",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "范围分片：按时间、ID范围分片，易实现，可能数据倾斜",
+      "哈希分片：按字段哈希值分片，数据均匀，范围查询需查所有分片",
+      "一致性哈希：哈希环，节点增减时只影响相邻节点，适合动态扩容",
+      "地理位置分片：按地区分片，适合本地化业务",
+      "复合分片：多种策略结合（如先范围后哈希）"
+    ]
+  },
+  {
+    "question": "什么是读写分离？如何实现？",
+    "category": "数据库",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "读写分离：主库写，从库读，提升查询性能",
+      "实现：主从复制（MySQL binlog）、中间件（ShardingSphere、MyCat、ProxySQL）、应用层代码（动态数据源）",
+      "主从延迟问题：解决方案：强制读主、等待从库同步、业务容错"
+    ]
+  },
+  {
+    "question": "什么是反向代理？Nginx 的作用？",
+    "category": "架构",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "反向代理：代理服务器接收请求，转发给后端服务器，客户端不知道后端服务器",
+      "Nginx作用：反向代理、负载均衡、静态资源服务、限流、缓存、SSL终止",
+      "负载均衡策略：轮询、加权轮询、IP哈希、最少连接、fair（响应时间）",
+      "优势：高性能、高并发、低内存、稳定可靠"
+    ]
+  },
+  {
+    "question": "什么是 CDN？作用是什么？",
+    "category": "架构",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "CDN（内容分发网络）：在各地部署节点，缓存内容，用户就近访问",
+      "作用：加速访问、减轻源站压力、提高可用性、抗DDoS",
+      "适用场景：静态资源（图片、CSS、JS）、视频、直播",
+      "缓存策略：过期时间、缓存刷新、预热"
+    ]
+  },
+  {
+    "question": "什么是微服务链路追踪？常见工具？",
+    "category": "微服务",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "链路追踪：追踪请求在微服务中的完整调用链，定位问题、分析性能",
+      "核心概念：Trace（一次请求）、Span（一次调用）、TraceID/SpanID（唯一标识）",
+      "常见工具：Jaeger、Zipkin、SkyWalking、Pinpoint",
+      "集成方式：OpenTelemetry（统一标准）、各框架适配（如Spring Cloud Sleuth）"
+    ]
+  },
+  {
+    "question": "什么是 DevOps？CI/CD 流程？",
+    "category": "工程实践",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "DevOps：开发（Dev）和运维（Ops）一体化，自动化构建、测试、部署",
+      "CI（持续集成）：代码提交后自动构建、测试，快速发现问题",
+      "CD（持续交付/持续部署）：持续交付到预发布环境，持续部署自动到生产环境",
+      "常见工具：Jenkins、GitLab CI、GitHub Actions、Docker、Kubernetes"
+    ]
+  },
+  {
+    "question": "Docker 和 Kubernetes 的作用？",
+    "category": "工程实践",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "Docker：容器化技术，将应用和依赖打包成镜像，一次构建，到处运行，环境一致性",
+      "Kubernetes（K8s）：容器编排平台，管理容器的部署、扩展、负载均衡、服务发现、自愈",
+      "K8s核心概念：Pod、Service、Deployment、ConfigMap、Secret、Ingress",
+      "优势：提升部署效率、弹性伸缩、高可用、资源利用率高"
+    ]
+  },
+  {
+    "question": "如何进行系统性能优化？",
+    "category": "性能优化",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "前端优化：页面静态化、CDN、压缩、缓存、懒加载、减少HTTP请求",
+      "网关优化：Nginx限流、缓存、负载均衡",
+      "服务优化：代码优化（算法、数据结构）、缓存（Redis）、异步（消息队列）、池化（线程池、连接池）、JVM调优",
+      "数据优化：数据库索引、分库分表、读写分离、SQL优化",
+      "架构优化：微服务、集群、分布式、容灾",
+      "监控：APM工具（Pinpoint、SkyWalking）定位瓶颈"
+    ]
+  },
+  {
+    "question": "SQL 优化的常见方法？",
+    "category": "数据库",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "避免SELECT *，只查需要的字段",
+      "合理使用索引：避免索引失效（如函数、隐式类型转换、OR、LIKE前缀%）",
+      "使用覆盖索引，避免回表",
+      "优化JOIN：小表驱动大表，减少JOIN次数",
+      "分页优化：深分页用延迟关联（先查ID再JOIN）或游标",
+      "避免在WHERE子句中使用函数、表达式",
+      "使用EXPLAIN分析执行计划，查看type、key、rows、Extra"
+    ]
+  },
+  {
+    "question": "什么是死锁？如何避免死锁？",
+    "category": "并发编程",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "死锁：两个或多个线程互相等待对方释放锁，永久阻塞",
+      "死锁条件：互斥、请求与保持、不剥夺、循环等待",
+      "避免：破坏死锁条件（如固定加锁顺序、避免请求与保持、使用定时锁）",
+      "检测：jstack、JConsole查看线程堆栈",
+      "解决：kill线程、重启服务、优化代码"
+    ]
+  },
+  {
+    "question": "什么是 CAS？ABA 问题如何解决？",
+    "category": "并发编程",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "CAS（Compare And Swap）：比较并交换，原子操作，无锁优化",
+      "操作：内存值V、预期值A、新值B，若V==A则将V更新为B，否则重试",
+      "ABA问题：值从A→B→A，CAS误以为没变化",
+      "解决：版本号（AtomicStampedReference，带戳记）、时间戳"
+    ]
+  },
+  {
+    "question": "什么是 AQS？",
+    "category": "并发编程",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "AQS（AbstractQueuedSynchronizer）：抽象队列同步器，JUC并发工具的基础（ReentrantLock、CountDownLatch、Semaphore等）",
+      "核心：state（同步状态）、CLH队列（FIFO等待队列）",
+      "模式：独占模式（如ReentrantLock）、共享模式（如CountDownLatch）",
+      "方法：tryAcquire/tryRelease（独占）、tryAcquireShared/tryReleaseShared（共享）",
+      "原理：CAS修改state，失败则入队阻塞，释放时唤醒后继节点"
+    ]
+  },
+  {
+    "question": "CountDownLatch、CyclicBarrier、Semaphore 的区别？",
+    "category": "并发编程",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "CountDownLatch：计数器，一个或多个线程等待其他线程完成，countDown()减计数，await()等待，只能用一次",
+      "CyclicBarrier：栅栏，多个线程互相等待到同步点，然后一起执行，await()等待，可重置，可重复使用",
+      "Semaphore：信号量，控制并发线程数，acquire()获取许可，release()释放许可",
+      "适用场景：CountDownLatch用于主线程等待子线程，CyclicBarrier用于多线程同步，Semaphore用于限流"
+    ]
+  },
+  {
+    "question": "什么是线程安全？如何保证线程安全？",
+    "category": "并发编程",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "线程安全：多线程并发访问共享资源时，不会出现数据不一致",
+      "保证方法：synchronized、Lock、原子类（AtomicInteger等）、ThreadLocal、不可变对象、线程安全容器（ConcurrentHashMap、CopyOnWriteArrayList等）",
+      "避免共享：尽量减少共享变量，使用局部变量"
+    ]
+  },
+  {
+    "question": "什么是乐观锁和悲观锁？如何实现？",
+    "category": "并发编程",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "悲观锁：假设并发冲突多，先加锁再操作（如synchronized、ReentrantLock、数据库SELECT ... FOR UPDATE）",
+      "乐观锁：假设并发冲突少，先操作，提交时检查冲突（如CAS、数据库版本号/时间戳）",
+      "适用场景：悲观锁适合写多读少，乐观锁适合读多写少"
+    ]
+  },
+  {
+    "question": "什么是类加载机制？类加载过程？",
+    "category": "JVM",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "类加载机制：JVM将.class文件加载到内存，验证、准备、解析、初始化，形成可使用的Java类",
+      "类加载过程：加载（获取二进制流，生成Class对象）→ 验证（文件格式、字节码、符号引用等验证）→ 准备（为静态变量分配内存，赋默认值）→ 解析（符号引用转直接引用）→ 初始化（执行<clinit>，静态变量赋值、静态代码块）",
+      "类加载器：Bootstrap ClassLoader（启动类加载器，加载核心类）、Extension ClassLoader（扩展类加载器，加载ext目录）、Application ClassLoader（应用类加载器，加载classpath）、自定义类加载器",
+      "双亲委派模型：类加载器先委托父加载器加载，父加载器无法加载才自己加载，保证类唯一性"
+    ]
+  },
+  {
+    "question": "什么是双亲委派模型？为什么需要？",
+    "category": "JVM",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "双亲委派模型：类加载器收到加载请求，先委托父加载器，父加载器无法加载才自己加载",
+      "作用：保证类的唯一性（同一个类只被加载一次）、保证核心类安全（如java.lang.Object不会被篡改）",
+      "破坏双亲委派：Tomcat（优先加载Web应用类）、OSGi（模块化热部署）"
+    ]
+  },
+  {
+    "question": "什么是 JMM（Java内存模型）？",
+    "category": "JVM",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "JMM：Java内存模型，定义多线程下共享变量的访问规则，保证可见性、原子性、有序性",
+      "主内存与工作内存：共享变量存主内存，每个线程有工作内存，工作内存存主内存副本，线程操作工作内存，通过主内存同步",
+      "重排序：编译器、CPU可能重排序指令，JMM通过happens-before规则禁止不必要的重排序",
+      "happens-before规则：程序次序规则、管程锁定规则、volatile变量规则、线程启动规则、线程终止规则、线程中断规则、对象终结规则、传递性"
+    ]
+  },
+  {
+    "question": "什么是强引用、软引用、弱引用、虚引用？",
+    "category": "JVM",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "强引用：普通引用，OOM也不回收",
+      "软引用（SoftReference）：内存不足时回收，适合缓存",
+      "弱引用（WeakReference）：下次GC必回收，ThreadLocal中使用",
+      "虚引用（PhantomReference）：仅用于跟踪对象回收，必须配合ReferenceQueue",
+      "引用队列（ReferenceQueue）：引用对象被回收时加入队列，可做后续处理"
+    ]
+  },
+  {
+    "question": "什么是 Full GC？触发条件？",
+    "category": "JVM",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "Full GC：整堆回收（年轻代+老年代+元空间），STW时间长",
+      "触发条件：老年代空间不足、元空间不足、System.gc()（建议，不一定执行）、CMS GC失败（Concurrent Mode Failure）、晋升担保失败",
+      "优化：避免Full GC，调整堆大小、老年代比例、选择合适的垃圾收集器"
+    ]
+  },
+  {
+    "question": "什么是对象头？Mark Word 结构？",
+    "category": "JVM",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "对象头：HotSpot虚拟机对象头包含Mark Word、类型指针、数组长度（数组对象）",
+      "Mark Word：存储对象哈希码、GC分代年龄、锁状态标志、偏向线程ID等",
+      "锁状态：无锁、偏向锁、轻量级锁、重量级锁，Mark Word结构随锁状态变化",
+      "类型指针：指向对象的类元数据，JVM通过它确定对象是哪个类的实例"
+    ]
+  },
+  {
+    "question": "synchronized 锁升级过程？",
+    "category": "并发编程",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "无锁：对象刚创建，无竞争",
+      "偏向锁：第一个线程获取锁，Mark Word记录线程ID，后续该线程直接获取，无开销",
+      "轻量级锁：多线程交替获取锁，CAS将Mark Word替换为指向锁记录的指针，失败则自旋",
+      "重量级锁：自旋超过次数或多线程同时竞争，升级为重量级锁，Mark Word指向monitor，线程阻塞",
+      "锁升级：只能升级不能降级（偏向锁可重置）"
+    ]
+  },
+  {
+    "question": "什么是 SPI？如何实现？",
+    "category": "Java基础",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "SPI（Service Provider Interface）：服务提供者接口，Java提供的服务发现机制，实现解耦",
+      "实现：定义接口，服务提供者实现接口，在META-INF/services/目录下创建以接口全限定名命名的文件，内容为实现类全限定名，通过ServiceLoader.load()加载实现类",
+      "应用：JDBC驱动、Dubbo、Spring等框架中广泛使用"
+    ]
+  },
+  {
+    "question": "什么是 Netty？核心组件？",
+    "category": "网络",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "Netty：基于NIO的高性能网络框架，异步事件驱动，用于开发RPC、消息队列、游戏服务器等",
+      "核心组件：Bootstrap/ServerBootstrap（启动类）、EventLoop（事件循环）、EventLoopGroup（事件循环组）、Channel（通道）、ChannelHandler（处理器）、ChannelPipeline（处理器链）、ByteBuf（字节缓冲区）",
+      "优势：高性能、高并发、低延迟、API易用、稳定可靠"
+    ]
+  },
+  {
+    "question": "什么是 RPC？常见的 RPC 框架？",
+    "category": "分布式",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "RPC（Remote Procedure Call）：远程过程调用，像调用本地方法一样调用远程方法",
+      "核心流程：客户端调用→序列化→网络传输→服务端反序列化→服务端执行→结果序列化→网络传输→客户端反序列化→返回结果",
+      "常见框架：Dubbo（阿里开源，功能完善）、gRPC（Google，基于HTTP/2+Protobuf）、Thrift（Facebook，多语言）、Spring Cloud OpenFeign（Spring Cloud，HTTP）",
+      "核心组件：服务注册发现、负载均衡、序列化、网络通信、容错"
+    ]
+  },
+  {
+    "question": "Dubbo 的架构？核心组件？",
+    "category": "分布式",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "架构：Provider（服务提供者）、Consumer（服务消费者）、Registry（注册中心）、Monitor（监控中心）、Container（容器）",
+      "核心流程：Provider启动注册到Registry，Consumer从Registry订阅Provider，Consumer调用Provider，Monitor统计调用",
+      "核心组件：Protocol（协议，如Dubbo、HTTP）、Proxy（代理，生成远程调用代理）、Registry（注册中心，如Nacos、ZooKeeper）、Cluster（集群，容错+负载均衡）、LoadBalance（负载均衡，如随机、轮询、一致性哈希）、Filter（过滤器，如监控、限流）"
+    ]
+  },
+  {
+    "question": "什么是 ZooKeeper？应用场景？",
+    "category": "分布式",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "ZooKeeper：分布式协调服务，提供数据发布/订阅、命名服务、分布式协调/通知、分布式锁、分布式队列等功能",
+      "数据模型：树形结构，节点（ZNode），可存数据，有版本号",
+      "应用场景：服务注册发现（Dubbo旧版）、配置中心、分布式锁、Master选举、分布式队列",
+      "特性：顺序一致性、原子性、单一视图、可靠性、实时性"
+    ]
+  },
+  {
+    "question": "什么是 Kafka？架构？核心概念？",
+    "category": "分布式",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "Kafka：分布式消息队列，高吞吐量、低延迟，用于日志收集、数据管道、流处理",
+      "架构：Producer（生产者）、Consumer（消费者）、Broker（代理节点）、Topic（主题）、Partition（分区）、Replica（副本）、ZooKeeper/Kraft（元数据管理）",
+      "核心概念：Topic（消息主题）、Partition（分区，有序，并行处理）、Offset（偏移量，消费者位置）、Consumer Group（消费者组，组内消费者负载均衡，组间广播）、Leader/Follower（副本主从，Leader读写，Follower同步）",
+      "优势：高吞吐、分布式、高可用、可扩展、持久化"
+    ]
+  },
+  {
+    "question": "Kafka 如何保证消息顺序？",
+    "category": "分布式",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "单分区内有序：同一Partition内消息按Offset顺序存储，消费者按Offset顺序消费",
+      "多分区全局有序：需保证相关消息发送到同一Partition（如按key哈希），且消费者组只有一个消费者（或单线程消费）",
+      "注意：生产者重试可能导致乱序，可设置max.in.flight.requests.per.connection=1（但降低性能），或使用幂等生产者（enable.idempotence=true）"
+    ]
+  },
+  {
+    "question": "Kafka 如何保证消息不丢？",
+    "category": "分布式",
+    "difficulty": "hard",
+    "answer_keypoints": [
+      "生产者端：acks=all（等待所有ISR副本确认）、retries>0（重试）、enable.idempotence=true（幂等，防止重复）",
+      "Broker端：replication.factor≥2（多副本）、min.insync.replicas≥2（ISR至少2个副本）、unclean.leader.election.enable=false（禁止非ISR副本选为Leader）",
+      "消费者端：enable.auto.commit=false（手动提交offset）、消费完成后再提交offset、幂等处理防止重复消费"
+    ]
+  },
+  {
+    "question": "什么是 Elasticsearch？应用场景？",
+    "category": "搜索引擎",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "Elasticsearch：分布式搜索引擎，基于Lucene，全文检索、结构化搜索、分析",
+      "核心概念：Index（索引）、Type（类型，7.x+已废弃）、Document（文档）、Shard（分片）、Replica（副本）、Node（节点）、Cluster（集群）",
+      "应用场景：全文搜索（如电商商品搜索）、日志分析（ELK Stack）、监控告警、数据分析",
+      "优势：分布式、高可用、可扩展、近实时、RESTful API"
+    ]
+  },
+  {
+    "question": "什么是 ELK Stack？",
+    "category": "工程实践",
+    "difficulty": "easy",
+    "answer_keypoints": [
+      "ELK Stack：Elasticsearch（存储、搜索）、Logstash（日志收集、过滤）、Kibana（可视化）",
+      "扩展：Filebeat（轻量级日志采集，替代Logstash Agent）、Beats（多种采集器）",
+      "流程：Filebeat采集日志→Logstash过滤→Elasticsearch存储→Kibana展示",
+      "应用：日志收集分析、监控告警、问题排查"
+    ]
+  },
+  {
+    "question": "如何进行代码审查（Code Review）？",
+    "category": "工程实践",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "审查内容：代码规范、逻辑正确性、性能、安全性、可维护性、可读性、测试覆盖",
+      "流程：提交PR/MR→自动检查（CI/CD、静态代码分析）→人工审查→修改→合并",
+      "原则：小步提交、明确审查目标、尊重作者、建设性反馈、及时响应",
+      "工具：GitHub/GitLab PR、Gerrit、SonarQube（静态分析）"
+    ]
+  },
+  {
+    "question": "如何写出高质量的代码？",
+    "category": "工程实践",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "规范：遵循代码规范（如阿里巴巴Java开发手册），命名清晰，注释适当",
+      "设计：单一职责、开闭原则、依赖倒置等设计原则，合理使用设计模式",
+      "性能：避免过早优化，合理使用数据结构和算法，注意资源释放",
+      "安全：输入校验、防止SQL注入/XSS/CSRF、敏感数据加密、权限控制",
+      "测试：单元测试、集成测试，保证测试覆盖",
+      "可维护：可读性好、模块化、低耦合、文档完善"
+    ]
+  },
+  {
+    "question": "遇到过的最大技术挑战？如何解决？",
+    "category": "开放性问题",
+    "difficulty": "medium",
+    "answer_keypoints": [
+      "描述背景：项目场景、问题现象",
+      "分析原因：定位问题根因（如性能瓶颈、数据一致性、并发问题）",
+      "解决方案：采取的措施（如优化、重构、引入新技术）",
+      "结果：解决后的效果（性能提升、问题解决、经验总结）",
+      "注意：真实案例，突出思考过程和解决能力"
+    ]
+  }
+]
