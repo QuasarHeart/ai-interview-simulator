@@ -1,3 +1,4 @@
+accelerate==1.13.0
 action-msgs==2.0.3
 action-tutorials-interfaces==0.33.6
 action-tutorials-py==0.33.6
@@ -29,6 +30,7 @@ bcrypt==5.0.0
 beautifulsoup4==4.14.3
 build==1.4.0
 builtin-interfaces==2.0.3
+cachetools==7.0.2
 certifi==2026.2.25
 charset-normalizer==3.4.4
 chromadb==1.5.2
@@ -111,6 +113,7 @@ llama-index-llms-openai==0.6.23
 llama-index-readers-file==0.5.6
 llama-index-readers-llama-parse==0.5.1
 llama-index-vector-stores-chroma==0.5.5
+llama-index-vector-stores-milvus==1.0.0
 llama-index-workflows==2.15.0
 llama-parse==0.6.54
 logging-demo==0.33.6
@@ -160,16 +163,19 @@ overrides==7.7.0
 packaging @ file:///home/task_176104885106445/conda-bld/packaging_1761049078006/work
 pandas==2.3.3
 pcl-msgs==1.0.0
+peft==0.18.1
 pendulum-msgs==0.33.6
 pillow==12.1.1
 platformdirs==4.9.2
 posthog==5.4.0
 propcache==0.4.1
 protobuf==6.33.5
+psutil==7.2.2
 pybase64==1.4.3
 pydantic==2.12.5
 pydantic_core==2.41.5
 Pygments==2.19.2
+pymilvus==2.6.9
 pyparsing==3.3.2
 pypdf==6.7.5
 PyPika==0.51.1
