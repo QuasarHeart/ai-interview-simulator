@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: Fuchuang
+  servlet:
+    multipart:
+        max-file-size: 10MB
+        max-request-size: 10MB
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://192.168.59.129:3306/FuChuang
+    username: root
+    password: 159357
+  mybatis:
+    configuration:
+      log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  pagehelper:
+    reasonable: true
+    helper-dialect: mysql
+  mail:
+    host: smtp.qq.com
+    username: 2979734778@qq.com
+    password: jahgtugevuqudddg # 授权码
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+  data:
+    redis:
+      host: 192.168.59.129
+      port: 6379
+
+#腾讯云配置
+cos:
+  secretId: AKIDLVizHUWN4YbaNxLWR9ev0ta5NUO5Zs0v
+  secretKey: nCVdaMzSjohYFkHhx2xhIiwztdCalmcJ
+  region: ap-chengdu
+  bucket: fuchuang-1403787881
+  appId: 1403787881

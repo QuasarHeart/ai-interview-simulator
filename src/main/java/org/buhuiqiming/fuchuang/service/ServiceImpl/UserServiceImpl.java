@@ -1,0 +1,154 @@
+package org.buhuiqiming.fuchuang.service.ServiceImpl;
+
+import lombok.extern.slf4j.Slf4j;
+import org.buhuiqiming.fuchuang.cos.URLAK;
+import org.buhuiqiming.fuchuang.dto.LoginDTO;
+import org.buhuiqiming.fuchuang.dto.LoginInfo;
+import org.buhuiqiming.fuchuang.dto.UserDTO;
+import org.buhuiqiming.fuchuang.entity.Account;
+import org.buhuiqiming.fuchuang.entity.User;
+import org.buhuiqiming.fuchuang.exception.ServiceException;
+import org.buhuiqiming.fuchuang.mapper.UserMapper;
+import org.buhuiqiming.fuchuang.service.CodeService;
+import org.buhuiqiming.fuchuang.service.UserService;
+import org.buhuiqiming.fuchuang.util.JwtUtils;
+import org.buhuiqiming.fuchuang.util.UserContext;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
+
+@Slf4j
+@Service
+public class UserServiceImpl implements UserService {
+    @Autowired
+    private UserMapper userMapper;
+    @Autowired
+    private CodeService codeService;
+    @Autowired
+    private JwtUtils jwtUtils;
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+    @Autowired
+    private URLAK urlAK;
+
+    @Override
+    public String hashPassword(String password) {
+        BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+        return encoder.encode(password);
+    }
+    @Override
+    public boolean checkPassword(String password, String hashPassword) {
+        BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+        return encoder.matches(password, hashPassword);
+    }
+
+    @Override
+    public boolean checkPasswordFormat(String password){
+        //密码校验，8-16位，数字和大小写字母构成
+        return password.matches("^(?=.*[a-zA-Z])(?=.*\\d)[a-zA-Z\\d]{8,16}$");
+    }
+
+    @Override
+    public User getUserBasicInfo() {
+        Long id = UserContext.get();
+        User user= userMapper.getUserBasicInfo(id);
+        return user;
+    }
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void addUser(UserDTO userDTO) {
+
+        if(!checkPasswordFormat(userDTO.getAccount().getPassword()))
+            throw new ServiceException(412,"密码格式错误,应为字母数字组合，8-16位");
+
+        //用户注册之前，添加一下account中的时间字段
+        userDTO.getAccount().setCreateTime(LocalDateTime.now());
+        userDTO.getAccount().setUpdateTime(LocalDateTime.now());
+        //账户状态
+        userDTO.getAccount().setStatus(0);
+        //密码hash
+        userDTO.getAccount().setPassword(hashPassword(userDTO.getAccount().getPassword()));
+
+
+        //account的email为unique
+        try {
+
+            userMapper.insertAccount(userDTO.getAccount());
+            //账户字段的id
+            userDTO.getUser().setUserId(userDTO.getAccount().getId());
+            userMapper.insertUser(userDTO.getUser());
+        } catch (Exception e) {
+            log.info("用户已存在");
+            throw new ServiceException(412,"用户已存在");
+        }
+        codeService.checkCode(userDTO.getAccount().getEmail(), userDTO.getCode());
+    }
+    @Transactional
+    @Override
+    public void updateUser(UserDTO  user){
+
+        if(user.getAccount().getPassword()!=null&&!checkPasswordFormat(user.getAccount().getPassword()))
+            throw new ServiceException(412,"密码格式错误,应为字母数字组合，8-16位");
+
+        user.getAccount().setUpdateTime(LocalDateTime.now());
+        user.getAccount().setPassword(hashPassword(user.getAccount().getPassword()));
+        userMapper.updateUser(user.getUser(),UserContext.get());
+        userMapper.updateAccount(user.getAccount(),UserContext.get());
+    }
+    @Override
+    @Transactional
+    public void deleteUser(){
+        //先删除COS上的用户信息
+        urlAK.deleteObject(userMapper.getAvatar(UserContext.get()));
+        log.info("删除用户头像成功");
+//todo 后续任务也需要删除
+
+        Long id = UserContext.get();
+        userMapper.deleteUser(id);
+        log.info("删除用户成功");
+        userMapper.deleteAccount(id);
+        log.info("删除账户成功");
+    }
+
+
+
+    @Override
+    public LoginInfo login(LoginDTO loginDTO)
+    {
+        Account account= userMapper.login(loginDTO.getEmail());
+        if(account==null){
+            log.info("用户不存在");
+            throw new ServiceException(412,"用户不存在");
+        }
+        if(!checkPassword(loginDTO.getPassword(),account.getPassword())){
+            log.info("密码错误");
+            throw new ServiceException(412,"密码错误");
+        }
+        Map<String,Object> claims= new HashMap<>();
+        claims.put("id",account.getId());
+        claims.put("email",account.getEmail());
+
+        String token= jwtUtils.generateJwt(claims);
+        log.info("生成token成功,token:{}", token);
+        return new LoginInfo(account.getId(),account.getEmail(),token);
+    }
+    @Override
+    public void logout(){
+        Long id = UserContext.get();
+        Account account = new Account();
+        //更新账户最近登录时间
+        account.setLatestLoginTime(LocalDateTime.now());
+        userMapper.updateAccount(account,id);
+
+        //删除token锁
+        stringRedisTemplate.delete("lock:token:"+id);
+        log.info("用户{}退出登录成功",id);
+
+    }
+}

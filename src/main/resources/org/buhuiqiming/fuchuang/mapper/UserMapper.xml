@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.buhuiqiming.fuchuang.mapper.UserMapper">
+    <resultMap id="userMap" type="org.buhuiqiming.fuchuang.entity.User">
+        <id property="userId" column="user_id"/>
+        <result property="nickName" column="nick_name"/>
+    </resultMap>
+    <select id="getUserBasicInfo" resultMap="userMap">
+        SELECT u.user_id,u.nick_name,u.gender, ac.email,u.description
+        from account ac left join user u
+        on ac.id = u.user_id where ac.id = #{id}
+    </select>
+    <insert id="addUser">
+        INSERT INTO users(nick_name,gender) VALUES (#{nickName},#{gender})
+    </insert>
+
+    <update id="updateUser">
+        UPDATE user
+        <set>
+        <if test="u.nickName != null">
+            nick_name = #{u.nickName},
+        </if>
+        <if test="u.gender != null">
+            gender = #{u.gender},
+        </if>
+        <if test="u.description != null">
+            description = #{u.description}
+        </if>
+        </set>
+        WHERE user_id = #{id}
+    </update>
+    <update id="updateAccount">
+        UPDATE account
+        <set>
+            <if test="a.password != null">
+                password = #{a.password},
+            </if>
+            <if test="a.updateTime != null">
+                update_time = #{a.updateTime},
+            </if>
+            <if test="a.latestLoginTime != null">
+                latest_login_time = #{a.latestLoginTime}
+            </if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+<!--    初始化，数据表不存在时，自建-->
+    <update id ="init_account">
+    CREATE TABLE if not exists account(
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    password VARCHAR(100) NOT NULL comment "BCyrpt加密",
+    email VARCHAR(30) NOT NULL UNIQUE,
+    status TINYINT NOT NULL,
+    create_time DATETIME NOT NULL,
+    update_time DATETIME NOT NULL,
+    latest_login_time DATETIME
+    );
+    </update>
+    <update id ="init_user">
+        CREATE TABLE IF NOT EXISTS user(
+        user_id INT PRIMARY KEY NOT NULL,
+        gender TINYINT,
+        nick_name VARCHAR(50),
+        description VARCHAR(100),
+        avatar VARCHAR(50)
+        );
+    </update>
+
+
+</mapper>
