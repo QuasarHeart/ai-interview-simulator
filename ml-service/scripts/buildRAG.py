@@ -1,24 +1,43 @@
 """
-后续添加新的资料进入RAG数据库只需要按照岗位的不同直接输出如下指令：
-JOB_ROLE=岗位名 python buildRAG.py
+buildRAG.py
+仅负责：
+1. 加载文档
+2. 文本切分
+3. 本地 embedding
+4. 写入 Zilliz / Milvus
+
+支持两种模式：
+- INGEST_MODE=rebuild  : 删除并重建 collection
+- INGEST_MODE=append   : 追加写入（使用稳定唯一 chunk_id）
+
+用法示例：
+
+export MILVUS_URI="替换成你的 Zilliz URI"
+export MILVUS_TOKEN="替换成你的 Zilliz Token"
+export LOCAL_EMBEDDING_PATH="/mnt/workspace/hf_cache/models--Qwen--Qwen3-Embedding-0.6B/snapshots/c54f2e6e80b2d7b7de06f51cec4959f6b3e03418"
+export JOB_ROLE="java_backend"
+export INGEST_MODE="rebuild"
+
+python buildRAG.py
+
+如需自定义文档目录：
+export DOCS_DIR="/mnt/workspace/ai-interview-simulator/ml-service/knowledge_base/java_backend/reference_docs"
 """
 
 import os
 import json
-import time
 import math
+import hashlib
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Iterable
+from typing import Any, Dict, List, Iterable
 
-from openai import OpenAI
 from pymilvus import MilvusClient
 from tqdm import tqdm
+from sentence_transformers import SentenceTransformer
 
 from llama_index.core import SimpleDirectoryReader, Document
 from llama_index.core.embeddings import BaseEmbedding
-from llama_index.core.node_parser import SemanticSplitterNodeParser
-#from sentence_transformers import SentenceTransformer
 from llama_index.core.node_parser import SentenceSplitter
 
 
@@ -29,7 +48,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s"
 )
-logger = logging.getLogger("industrial-rag")
+logger = logging.getLogger("rag-ingest")
 
 
 # ============================================================
@@ -37,61 +56,63 @@ logger = logging.getLogger("industrial-rag")
 # ============================================================
 @dataclass
 class Settings:
-    # -------- DashScope / 阿里云 --------
-    dashscope_api_key: str = os.getenv("DASHSCOPE_API_KEY", "")
-    dashscope_base_url: str = os.getenv(
-        "DASHSCOPE_BASE_URL",
-        "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    # -------- 本地 Embedding 模型 --------
+    local_embedding_path: str = os.getenv(
+        "LOCAL_EMBEDDING_PATH",
+        "/mnt/workspace/hf_cache/models--Qwen--Qwen3-Embedding-0.6B/snapshots/c54f2e6e80b2d7b7de06f51cec4959f6b3e03418"
     )
 
-    embedding_model: str = os.getenv("EMBEDDING_MODEL", "text-embedding-v2")
-    chat_model: str = os.getenv("CHAT_MODEL", "qwen-turbo")
+    # -------- 任务信息 --------
     job_role: str = os.getenv("JOB_ROLE", "")
+    ingest_mode: str = os.getenv("INGEST_MODE", "append").strip().lower()
+
     # -------- 文档目录 --------
-    docs_dir: str = os.getenv("DOCS_DIR","")
+    docs_dir: str = os.getenv("DOCS_DIR", "")
     docs_exts: tuple = (".md",)
 
     # -------- 文本处理 --------
     max_text_length: int = int(os.getenv("MAX_TEXT_LENGTH", "8000"))
     min_chunk_length: int = int(os.getenv("MIN_CHUNK_LENGTH", "20"))
 
-    # -------- 语义切分 --------
-    semantic_buffer_size: int = int(os.getenv("SEMANTIC_BUFFER_SIZE", "1"))
-    semantic_breakpoint_percentile_threshold: int = int(
-        os.getenv("SEMANTIC_BREAKPOINT_PERCENTILE_THRESHOLD", "90")
-    )
+    # -------- 切分参数 --------
+    chunk_size: int = int(os.getenv("CHUNK_SIZE", "500"))
+    chunk_overlap: int = int(os.getenv("CHUNK_OVERLAP", "50"))
 
     # -------- Embedding 批处理 --------
     embedding_batch_size: int = int(os.getenv("EMBEDDING_BATCH_SIZE", "16"))
-    embedding_max_retries: int = int(os.getenv("EMBEDDING_MAX_RETRIES", "3"))
-    embedding_retry_backoff: float = float(os.getenv("EMBEDDING_RETRY_BACKOFF", "1.5"))
 
-    # -------- Milvus --------
-    milvus_uri: str = os.getenv("MILVUS_URI", "http://localhost:19530")
+    # -------- Milvus / Zilliz --------
+    milvus_uri: str = os.getenv("MILVUS_URI", "")
+    milvus_token: str = os.getenv("MILVUS_TOKEN", "")
     collection_name: str = os.getenv("MILVUS_COLLECTION", "")
     milvus_metric_type: str = os.getenv("MILVUS_METRIC_TYPE", "COSINE")
-    recreate_collection: bool = os.getenv("RECREATE_COLLECTION", "false").lower() == "true"
 
-    # -------- 检索 --------
-    top_k: int = int(os.getenv("TOP_K", "3"))
-
-    # -------- LLM --------
-    temperature: float = float(os.getenv("TEMPERATURE", "0.1"))
-
-    # -------- 演示问题 --------
-    question: str = os.getenv("QUESTION", "Java语言的优点是什么？")
+    # -------- 去重与控制 --------
+    skip_existing_in_append: bool = os.getenv("SKIP_EXISTING_IN_APPEND", "true").lower() == "true"
 
 
 # ============================================================
-# 3. 通用工具函数
+# 3. 基础校验
 # ============================================================
-def ensure_api_key(settings: Settings) -> None:
-    if not settings.dashscope_api_key:
-        raise ValueError(
-            "未检测到 DASHSCOPE_API_KEY。请先设置环境变量，例如：\n"
-            "Linux/macOS: export DASHSCOPE_API_KEY='你的Key'\n"
-            "Windows PowerShell: $env:DASHSCOPE_API_KEY='你的Key'"
+def ensure_milvus_config(settings: Settings) -> None:
+    if not settings.milvus_uri:
+        raise ValueError("未检测到 MILVUS_URI，请先设置环境变量")
+    if not settings.milvus_token:
+        raise ValueError("未检测到 MILVUS_TOKEN，请先设置环境变量")
+
+
+def ensure_local_embedding_path(settings: Settings) -> None:
+    if not settings.local_embedding_path:
+        raise ValueError("未检测到 LOCAL_EMBEDDING_PATH")
+    if not os.path.isdir(settings.local_embedding_path):
+        raise FileNotFoundError(
+            f"本地 embedding 模型目录不存在: {settings.local_embedding_path}"
         )
+
+
+def ensure_ingest_mode(settings: Settings) -> None:
+    if settings.ingest_mode not in {"rebuild", "append"}:
+        raise ValueError("INGEST_MODE 仅支持 'rebuild' 或 'append'")
 
 
 def truncate_text(text: str, max_length: int) -> str:
@@ -107,60 +128,28 @@ def batched(items: List[Any], batch_size: int) -> Iterable[List[Any]]:
 
 
 # ============================================================
-# 4. OpenAI Compatible Client（阿里云 DashScope）
+# 4. 本地 Embedding
 # ============================================================
-def build_openai_client(settings: Settings) -> OpenAI:
-    ensure_api_key(settings)
-    client = OpenAI(
-        api_key=settings.dashscope_api_key,
-        base_url=settings.dashscope_base_url
-    )
-    return client
-
-
-# ============================================================
-# 5. 自定义 Embedding 适配 LlamaIndex
-# ============================================================
-class AliyunEmbedding(BaseEmbedding):
+class LocalSentenceTransformerEmbedding(BaseEmbedding):
     model_name: str = ""
-    client: Any = None
+    model: Any = None
     max_text_length: int = 8000
-    max_retries: int = 3
-    retry_backoff: float = 1.5
+    batch_size: int = 16
 
     def __init__(
         self,
-        client: Any,
-        model_name: str,
+        model_path: str,
         max_text_length: int = 8000,
-        max_retries: int = 3,
-        retry_backoff: float = 1.5,
+        batch_size: int = 16,
         **kwargs: Any,
     ) -> None:
-        super().__init__(model_name=model_name, **kwargs)
-        self.client = client
-        self.model_name = model_name
+        super().__init__(model_name=model_path, **kwargs)
+        self.model_name = model_path
         self.max_text_length = max_text_length
-        self.max_retries = max_retries
-        self.retry_backoff = retry_backoff
+        self.batch_size = batch_size
 
-    def _call_embedding_api(self, input_data: Any) -> Any:
-        last_error = None
-        for attempt in range(1, self.max_retries + 1):
-            try:
-                return self.client.embeddings.create(
-                    model=self.model_name,
-                    input=input_data
-                )
-            except Exception as e:
-                last_error = e
-                sleep_seconds = self.retry_backoff ** (attempt - 1)
-                logger.warning(
-                    f"Embedding API 调用失败，第 {attempt}/{self.max_retries} 次重试，"
-                    f"{sleep_seconds:.2f}s 后重试。错误: {e}"
-                )
-                time.sleep(sleep_seconds)
-        raise RuntimeError(f"Embedding API 最终失败: {last_error}")
+        logger.info(f"加载本地 embedding 模型: {model_path}")
+        self.model = SentenceTransformer(model_path, device="cuda")
 
     def _sanitize(self, text: str) -> str:
         return truncate_text((text or "").strip(), self.max_text_length)
@@ -169,8 +158,13 @@ class AliyunEmbedding(BaseEmbedding):
         clean_text = self._sanitize(text)
         if not clean_text:
             raise ValueError("空文本无法生成 embedding")
-        resp = self._call_embedding_api(clean_text)
-        return resp.data[0].embedding
+
+        vector = self.model.encode(
+            clean_text,
+            normalize_embeddings=True,
+            show_progress_bar=False,
+        )
+        return vector.tolist()
 
     def _get_text_embeddings(self, texts: List[str]) -> List[List[float]]:
         clean_texts = [self._sanitize(t) for t in texts]
@@ -178,8 +172,13 @@ class AliyunEmbedding(BaseEmbedding):
         if not clean_texts:
             return []
 
-        resp = self._call_embedding_api(clean_texts)
-        return [item.embedding for item in resp.data]
+        vectors = self.model.encode(
+            clean_texts,
+            batch_size=self.batch_size,
+            normalize_embeddings=True,
+            show_progress_bar=False,
+        )
+        return vectors.tolist()
 
     def _get_query_embedding(self, query: str) -> List[float]:
         return self._get_text_embedding(query)
@@ -192,8 +191,10 @@ class AliyunEmbedding(BaseEmbedding):
 
     async def _aget_text_embeddings(self, texts: List[str]) -> List[List[float]]:
         return self._get_text_embeddings(texts)
+
+
 # ============================================================
-# 6. 文档加载
+# 5. 文档加载与切分
 # ============================================================
 def load_documents(settings: Settings) -> List[Document]:
     if not os.path.isdir(settings.docs_dir):
@@ -215,17 +216,18 @@ def load_documents(settings: Settings) -> List[Document]:
     return documents
 
 
-# ============================================================
-# 7. 语义切分
-# ============================================================
 def build_text_splitter(settings: Settings) -> SentenceSplitter:
-    splitter = SentenceSplitter(
-        chunk_size=500,
-        chunk_overlap=50,
+    return SentenceSplitter(
+        chunk_size=settings.chunk_size,
+        chunk_overlap=settings.chunk_overlap,
         include_metadata=True,
         include_prev_next_rel=True,
     )
-    return splitter
+
+
+def stable_chunk_id(source_file: str, text: str) -> str:
+    raw = f"{source_file}\n{text}".encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
 
 
 def split_documents_to_chunks(
@@ -233,11 +235,10 @@ def split_documents_to_chunks(
     splitter: Any,
     settings: Settings
 ) -> List[Dict[str, Any]]:
-    logger.info("开始进行语义切分")
+    logger.info("开始进行文本切分")
     nodes = splitter.get_nodes_from_documents(documents)
 
     chunks: List[Dict[str, Any]] = []
-    next_id = 0
 
     for node in nodes:
         text = node.get_content().strip()
@@ -254,25 +255,26 @@ def split_documents_to_chunks(
             or ""
         )
 
+        chunk_id = stable_chunk_id(source_file, text)
+
         chunks.append(
             {
-                "id": next_id,
+                "id": chunk_id,
                 "text": text,
                 "source": source_file,
                 "metadata": metadata,
             }
         )
-        next_id += 1
 
-    logger.info(f"语义切分完成，有效 chunk 数量: {len(chunks)}")
+    logger.info(f"切分完成，有效 chunk 数量: {len(chunks)}")
     if not chunks:
-        raise ValueError("语义切分后没有有效 chunk，请检查文档内容或切分参数")
+        raise ValueError("切分后没有有效 chunk，请检查文档内容或切分参数")
 
     return chunks
 
 
 # ============================================================
-# 8. Embedding 维度检测
+# 6. Embedding 维度检测
 # ============================================================
 def detect_embedding_dim(embed_model: BaseEmbedding) -> int:
     probe_text = "Go语言的优点：高性能、并发友好、语法简洁。"
@@ -285,38 +287,74 @@ def detect_embedding_dim(embed_model: BaseEmbedding) -> int:
 
 
 # ============================================================
-# 9. Milvus 管理
+# 7. Milvus 管理
 # ============================================================
 def build_milvus_client(settings: Settings) -> MilvusClient:
-    logger.info(f"连接 Milvus: {settings.milvus_uri}")
-    return MilvusClient(uri=settings.milvus_uri)
+    ensure_milvus_config(settings)
+    logger.info(f"连接 Milvus/Zilliz: {settings.milvus_uri}")
+    return MilvusClient(
+        uri=settings.milvus_uri,
+        token=settings.milvus_token,
+    )
 
 
-def recreate_collection_if_needed(
+def prepare_collection(
     milvus_client: MilvusClient,
     settings: Settings,
     embedding_dim: int
 ) -> None:
     exists = milvus_client.has_collection(settings.collection_name)
 
-    if exists and settings.recreate_collection:
-        logger.info(f"集合已存在，准备删除重建: {settings.collection_name}")
-        milvus_client.drop_collection(settings.collection_name)
-        exists = False
+    if settings.ingest_mode == "rebuild":
+        if exists:
+            logger.info(f"INGEST_MODE=rebuild，删除已有集合: {settings.collection_name}")
+            milvus_client.drop_collection(settings.collection_name)
+        logger.info(f"重建集合: {settings.collection_name}")
+        milvus_client.create_collection(
+            collection_name=settings.collection_name,
+            dimension=embedding_dim,
+            metric_type=settings.milvus_metric_type,
+        )
+        return
 
     if not exists:
-        logger.info(f"创建集合: {settings.collection_name}")
+        logger.info(f"集合不存在，自动创建: {settings.collection_name}")
         milvus_client.create_collection(
             collection_name=settings.collection_name,
             dimension=embedding_dim,
             metric_type=settings.milvus_metric_type,
         )
     else:
-        logger.info(f"复用已有集合: {settings.collection_name}")
+        logger.info(f"INGEST_MODE=append，复用已有集合: {settings.collection_name}")
+
+
+def get_existing_ids(
+    milvus_client: MilvusClient,
+    collection_name: str,
+    chunk_ids: List[str],
+    batch_size: int = 200
+) -> set:
+    existing_ids = set()
+    for batch in batched(chunk_ids, batch_size):
+        expr_ids = ",".join([f'"{cid}"' for cid in batch])
+        expr = f"id in [{expr_ids}]"
+        try:
+            res = milvus_client.query(
+                collection_name=collection_name,
+                filter=expr,
+                output_fields=["id"],
+            )
+            for item in res:
+                if "id" in item:
+                    existing_ids.add(item["id"])
+        except Exception as e:
+            logger.warning(f"查询已存在 chunk id 失败，将继续尝试插入。错误: {e}")
+            return set()
+    return existing_ids
 
 
 # ============================================================
-# 10. 批量向量化与入库
+# 8. 向量化与入库
 # ============================================================
 def embed_chunks(
     chunks: List[Dict[str, Any]],
@@ -329,11 +367,7 @@ def embed_chunks(
     total_batches = math.ceil(len(chunks) / settings.embedding_batch_size)
 
     for batch_idx, batch in enumerate(
-        tqdm(
-            list(batched(chunks, settings.embedding_batch_size)),
-            desc="Embedding",
-            total=total_batches
-        ),
+        batched(chunks, settings.embedding_batch_size),
         start=1
     ):
         texts = [item["text"] for item in batch]
@@ -371,6 +405,9 @@ def embed_chunks(
                 }
             )
 
+        if batch_idx % 10 == 0 or batch_idx == total_batches:
+            logger.info(f"Embedding 进度: {batch_idx}/{total_batches} 批")
+
     logger.info(f"成功生成并保留的向量记录数: {len(rows)}")
     if not rows:
         raise ValueError("没有任何有效向量可入库")
@@ -378,11 +415,38 @@ def embed_chunks(
     return rows
 
 
+def filter_existing_rows_for_append(
+    milvus_client: MilvusClient,
+    collection_name: str,
+    rows: List[Dict[str, Any]],
+    settings: Settings
+) -> List[Dict[str, Any]]:
+    if settings.ingest_mode != "append" or not settings.skip_existing_in_append:
+        return rows
+
+    ids = [row["id"] for row in rows]
+    existing_ids = get_existing_ids(milvus_client, collection_name, ids)
+
+    if not existing_ids:
+        logger.info("未检测到已存在 chunk，全部准备写入")
+        return rows
+
+    filtered = [row for row in rows if row["id"] not in existing_ids]
+    logger.info(
+        f"append 模式去重完成：原始 {len(rows)} 条，已存在 {len(existing_ids)} 条，待写入 {len(filtered)} 条"
+    )
+    return filtered
+
+
 def insert_into_milvus(
     milvus_client: MilvusClient,
     collection_name: str,
     rows: List[Dict[str, Any]]
 ) -> Any:
+    if not rows:
+        logger.info("没有需要写入的新记录，跳过插入")
+        return {"insert_count": 0}
+
     logger.info(f"开始写入 Milvus，记录数: {len(rows)}")
     result = milvus_client.insert(
         collection_name=collection_name,
@@ -393,170 +457,64 @@ def insert_into_milvus(
 
 
 # ============================================================
-# 11. 检索
-# ============================================================
-def search_context(
-    milvus_client: MilvusClient,
-    collection_name: str,
-    query_vector: List[float],
-    top_k: int
-) -> List[Dict[str, Any]]:
-    logger.info(f"开始向量检索，top_k={top_k}")
-    search_res = milvus_client.search(
-        collection_name=collection_name,
-        data=[query_vector],
-        limit=top_k,
-        output_fields=["text", "source", "metadata"],
-    )
-
-    results: List[Dict[str, Any]] = []
-    for item in search_res[0]:
-        entity = item.get("entity", {}) or {}
-        results.append(
-            {
-                "text": entity.get("text", ""),
-                "source": entity.get("source", ""),
-                "metadata": entity.get("metadata", ""),
-                "score": item.get("distance"),
-            }
-        )
-
-    logger.info(f"检索返回结果数: {len(results)}")
-    return results
-
-
-# ============================================================
-# 12. 问答
-# ============================================================
-def build_context(results: List[Dict[str, Any]]) -> str:
-    context_blocks = []
-    for i, item in enumerate(results, start=1):
-        block = (
-            f"[片段{i}]\n"
-            f"来源: {item.get('source', '')}\n"
-            f"相似度分数: {item.get('score')}\n"
-            f"内容:\n{item.get('text', '')}"
-        )
-        context_blocks.append(block)
-    return "\n\n".join(context_blocks)
-
-
-def answer_question(
-    client: OpenAI,
-    settings: Settings,
-    question: str,
-    retrieved_results: List[Dict[str, Any]]
-) -> str:
-    context = build_context(retrieved_results)
-
-    system_prompt = (
-        "你是专业的Java后端开发助手。\n"
-        "你必须严格基于 <context> 中的信息回答问题，禁止编造。\n"
-        "如果 <context> 里没有足够信息，请明确回答：未找到相关信息。\n"
-        "回答尽量条理清晰，优先用中文。"
-    )
-
-    user_prompt = f"""
-<context>
-{context}
-</context>
-
-<question>
-{question}
-</question>
-""".strip()
-
-    logger.info("开始调用聊天模型生成答案")
-    resp = client.chat.completions.create(
-        model=settings.chat_model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=settings.temperature,
-    )
-
-    if not resp.choices:
-        return "未找到相关信息"
-
-    content = resp.choices[0].message.content
-    if content is None:
-        return "未找到相关信息"
-
-    return content
-
-
-# ============================================================
-# 13. 主流程
+# 9. 主流程
 # ============================================================
 def main() -> None:
     settings = Settings()
+
+    if not settings.job_role:
+        raise ValueError("未设置 JOB_ROLE，请先设置环境变量，例如 export JOB_ROLE='java_backend'")
+
     if not settings.docs_dir:
         settings.docs_dir = f"../knowledge_base/{settings.job_role}/reference_docs/"
 
     if not settings.collection_name:
         settings.collection_name = f"job_{settings.job_role}"
-    logger.info("========== Industrial RAG Pipeline Start ==========")
+
+    ensure_ingest_mode(settings)
+    ensure_local_embedding_path(settings)
+
+    logger.info("========== RAG Ingest Start ==========")
     logger.info(f"当前岗位: {settings.job_role}")
     logger.info(f"当前文档目录: {settings.docs_dir}")
     logger.info(f"当前集合名: {settings.collection_name}")
-    logger.info(f"当前 embedding 模型: {settings.embedding_model}")
+    logger.info(f"当前 ingest 模式: {settings.ingest_mode}")
+    logger.info(f"当前本地 embedding 路径: {settings.local_embedding_path}")
 
-    # 1) 构建客户端
-    client = build_openai_client(settings)
-
-    # 2) 构建 embedding 模型
-    embed_model = AliyunEmbedding(
-        client=client,
-        model_name=settings.embedding_model,
+    embed_model = LocalSentenceTransformerEmbedding(
+        model_path=settings.local_embedding_path,
         max_text_length=settings.max_text_length,
-        max_retries=settings.embedding_max_retries,
-        retry_backoff=settings.embedding_retry_backoff,
+        batch_size=settings.embedding_batch_size,
     )
 
-    # 3) 加载文档
     documents = load_documents(settings)
-
-    # 4) 语义切分
     splitter = build_text_splitter(settings)
     chunks = split_documents_to_chunks(documents, splitter, settings)
 
-    # 5) embedding 维度检测
     embedding_dim = detect_embedding_dim(embed_model)
-
-    # 6) Milvus
     milvus_client = build_milvus_client(settings)
-    recreate_collection_if_needed(milvus_client, settings, embedding_dim)
+    prepare_collection(milvus_client, settings, embedding_dim)
 
-    # 7) 向量化并入库
     rows = embed_chunks(chunks, embed_model, settings)
-    insert_into_milvus(milvus_client, settings.collection_name, rows)
-
-    # 8) 检索
-    logger.info(f"问题: {settings.question}")
-    query_vector = embed_model._get_query_embedding(settings.question)
-    retrieved_results = search_context(
+    rows = filter_existing_rows_for_append(
         milvus_client=milvus_client,
         collection_name=settings.collection_name,
-        query_vector=query_vector,
-        top_k=settings.top_k,
-    )
-
-    print("\n================ 检索结果 ================\n")
-    print(json.dumps(retrieved_results, ensure_ascii=False, indent=2))
-
-    # 9) 回答
-    answer = answer_question(
-        client=client,
+        rows=rows,
         settings=settings,
-        question=settings.question,
-        retrieved_results=retrieved_results,
     )
 
-    print("\n================ 最终回答 ================\n")
-    print(answer)
+    insert_result = insert_into_milvus(milvus_client, settings.collection_name, rows)
 
-    logger.info("========== Industrial RAG Pipeline Done ==========")
+    print("\n================ 入库完成 ================\n")
+    print(json.dumps({
+        "collection_name": settings.collection_name,
+        "ingest_mode": settings.ingest_mode,
+        "input_docs_dir": settings.docs_dir,
+        "chunk_count": len(chunks),
+        "insert_count": insert_result.get("insert_count", 0) if isinstance(insert_result, dict) else str(insert_result),
+    }, ensure_ascii=False, indent=2))
+
+    logger.info("========== RAG Ingest Done ==========")
 
 
 if __name__ == "__main__":
