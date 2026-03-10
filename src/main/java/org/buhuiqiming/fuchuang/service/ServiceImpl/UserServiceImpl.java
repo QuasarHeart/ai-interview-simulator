@@ -13,7 +13,6 @@ import org.buhuiqiming.fuchuang.service.CodeService;
 import org.buhuiqiming.fuchuang.service.UserService;
 import org.buhuiqiming.fuchuang.util.JwtUtils;
 import org.buhuiqiming.fuchuang.util.UserContext;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -26,16 +25,19 @@ import java.util.Map;
 @Slf4j
 @Service
 public class UserServiceImpl implements UserService {
-    @Autowired
     private UserMapper userMapper;
-    @Autowired
     private CodeService codeService;
-    @Autowired
     private JwtUtils jwtUtils;
-    @Autowired
     private StringRedisTemplate stringRedisTemplate;
-    @Autowired
     private URLAK urlAK;
+
+    public UserServiceImpl(UserMapper userMapper, CodeService codeService, JwtUtils jwtUtils, StringRedisTemplate stringRedisTemplate, URLAK urlAK) {
+        this.userMapper = userMapper;
+        this.codeService = codeService;
+        this.jwtUtils = jwtUtils;
+        this.stringRedisTemplate = stringRedisTemplate;
+        this.urlAK = urlAK;
+    }
 
     @Override
     public String hashPassword(String password) {
