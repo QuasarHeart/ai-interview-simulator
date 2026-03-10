@@ -28,9 +28,7 @@ jobs:
         registry: ccr.ccs.tencentyun.com 
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
-        
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3 # 必须增加这一步以支持高级缓存  
+
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
