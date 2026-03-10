@@ -41,7 +41,7 @@ public class CodeServiceImpl implements CodeService {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom("2979734778@qq.com");
         message.setTo(email);
-        message.setSubject("您的注册验证码");
+        message.setSubject("您的注册/重置验证码");
         message.setText("您的验证码为：" + code + "，有效期5分钟。");
         mailSender.send(message);
     }

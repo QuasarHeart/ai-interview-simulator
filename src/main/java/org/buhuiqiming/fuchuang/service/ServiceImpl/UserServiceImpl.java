@@ -121,7 +121,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public LoginInfo login(LoginDTO loginDTO)
     {
-        Account account= userMapper.login(loginDTO.getEmail());
+        Account account= userMapper.searchAccountByEmail(loginDTO.getEmail());
         if(account==null){
             log.info("用户不存在");
             throw new ServiceException(412,"用户不存在");
@@ -149,6 +149,27 @@ public class UserServiceImpl implements UserService {
         //删除token锁
         stringRedisTemplate.delete("lock:token:"+id);
         log.info("用户{}退出登录成功",id);
+
+    }
+
+    @Override
+    public void resetPassword(UserDTO userDTO){
+
+        //用户查询
+        Account account= userMapper.searchAccountByEmail(userDTO.getAccount().getEmail());
+        if(account==null){
+            log.info("用户不存在");
+            throw new ServiceException(412,"用户不存在");
+        }
+        //验证码
+        if(!checkPasswordFormat(userDTO.getAccount().getPassword()))
+            throw new ServiceException(412,"密码格式错误,应为字母数字组合，8-16位");
+        codeService.checkCode(userDTO.getAccount().getEmail(), userDTO.getCode());
+
+        userDTO.getAccount().setUpdateTime(LocalDateTime.now());
+        //密码hash
+        userDTO.getAccount().setPassword(hashPassword(userDTO.getAccount().getPassword()));
+        userMapper.updateAccount(userDTO.getAccount(),account.getId().longValue());
 
     }
 }

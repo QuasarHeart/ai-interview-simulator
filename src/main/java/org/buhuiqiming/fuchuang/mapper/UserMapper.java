@@ -26,7 +26,7 @@ public interface UserMapper {
 
 
     @Select("select * from account where email = #{email}")
-    Account login(String email);
+    Account searchAccountByEmail(String email);
 
     @Delete("delete from user where user_id = #{id}")
     void deleteUser(Long id);

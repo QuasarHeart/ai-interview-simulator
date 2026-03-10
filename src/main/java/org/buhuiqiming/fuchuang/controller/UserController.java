@@ -38,6 +38,10 @@ public class UserController {
         userService.deleteUser();
         return Result.success();
     }
-
+    @PutMapping("/resetPassword")
+    public Result resetPassword(@RequestBody UserDTO userDTO){
+        userService.resetPassword(userDTO);
+        return Result.success();
+    }
 
 }

@@ -18,7 +18,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/**")             // 拦截所有请求
                 .excludePathPatterns(               // 排除不需要登录的接口
                         "/login",              // 登录接口
-                        "/code"// 发送验证码
+                        "/code",// 发送验证码
+                        "/users/resetPassword"
                 );
     }
 }

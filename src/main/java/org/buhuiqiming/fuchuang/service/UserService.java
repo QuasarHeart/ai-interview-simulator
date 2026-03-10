@@ -15,6 +15,7 @@ public interface UserService {
     boolean checkPassword(String password, String hashPassword);
     boolean checkPasswordFormat(String password);
 
+    void resetPassword(UserDTO userDTO);
 
     LoginInfo login(LoginDTO loginDTO);
     void logout();
