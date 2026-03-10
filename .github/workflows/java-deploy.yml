@@ -38,8 +38,7 @@ jobs:
         context: .
         push: true
         tags: ccr.ccs.tencentyun.com/${{ secrets.DOCKER_NAMESPACE }}/java-app:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+
 
     - name: Deploy to Server
       uses: appleboy/ssh-action@v1.0.3
