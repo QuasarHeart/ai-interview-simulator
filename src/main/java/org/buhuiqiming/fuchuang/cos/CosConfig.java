@@ -1,16 +1,24 @@
 package org.buhuiqiming.fuchuang.cos;
 
 import lombok.Data;
-import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import static java.lang.System.getenv;
+
 @Data
-@ConfigurationProperties(prefix = "cos")
 @Component
 public class CosConfig {
-    private String secretId;
-    private String secretKey;
-    private String bucket;
-    private String region;
-    private String appId;
+    private final String secretId;
+    private final String secretKey;
+    private final String bucket;
+    private final String region;
+    private final String appId;
+
+    public CosConfig() {
+        this.secretId = getenv("COS_SECRET_ID");
+        this.secretKey = getenv("COS_SECRET_KEY");
+        this.bucket = getenv("COS_BUCKET");
+        this.region = getenv("COS_REGION");
+        this.appId = getenv("COS_APP_ID");
+    }
 }
