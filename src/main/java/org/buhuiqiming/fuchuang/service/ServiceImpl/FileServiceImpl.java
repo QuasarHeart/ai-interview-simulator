@@ -8,7 +8,6 @@ import org.buhuiqiming.fuchuang.exception.ServiceException;
 import org.buhuiqiming.fuchuang.mapper.UserMapper;
 import org.buhuiqiming.fuchuang.service.FileService;
 import org.buhuiqiming.fuchuang.util.UserContext;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,11 +19,12 @@ import java.util.Map;
 @Service
 public class FileServiceImpl implements FileService {
 
-    @Autowired
     private URLAK urlAK;
-    @Autowired
     private UserMapper userMapper;
-
+    public FileServiceImpl(URLAK urlAK, UserMapper userMapper) {
+        this.urlAK = urlAK;
+        this.userMapper = userMapper;
+    }
 
     public static String getExtension(String fileName) {
         if (fileName == null) return null;
