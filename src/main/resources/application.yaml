@@ -8,9 +8,6 @@ spring:
 
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/FuChuang
-    username: root
-    password: 159357
   mybatis:
     configuration:
       log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
@@ -20,15 +17,11 @@ spring:
   mail:
     host: smtp.qq.com
     username: 2979734778@qq.com
-    password: jahgtugevuqudddg # 授权码
     properties:
       mail:
         smtp:
           auth: true
           starttls:
             enable: true
-  data:
-    redis:
-      host: 127.0.0.1
-      port: 6379
+
 

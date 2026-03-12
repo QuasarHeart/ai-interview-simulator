@@ -3,7 +3,6 @@ package org.buhuiqiming.fuchuang.service.ServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.buhuiqiming.fuchuang.exception.ServiceException;
 import org.buhuiqiming.fuchuang.service.CodeService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -16,10 +15,12 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class CodeServiceImpl implements CodeService {
 
-    @Autowired
     private JavaMailSender mailSender;
-    @Autowired
     private StringRedisTemplate redisTemplate;
+    public CodeServiceImpl(JavaMailSender mailSender, StringRedisTemplate redisTemplate) {
+        this.mailSender = mailSender;
+        this.redisTemplate = redisTemplate;
+    }
 
     @Override
     public void sendCode(String email) {
