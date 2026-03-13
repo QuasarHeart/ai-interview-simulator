@@ -5,7 +5,6 @@ import org.buhuiqiming.fuchuang.entity.MySession;
 import org.buhuiqiming.fuchuang.mapper.SessionMapper;
 import org.buhuiqiming.fuchuang.service.SessionService;
 import org.buhuiqiming.fuchuang.util.UserContext;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -14,9 +13,11 @@ import java.time.LocalDateTime;
 @Slf4j
 public class SessionServiceImpl implements SessionService {
 
-    @Autowired
     private SessionMapper sessionMapper;
 
+    public SessionServiceImpl(SessionMapper sessionMapper) {
+        this.sessionMapper = sessionMapper;
+    }
     @Override
     public MySession createSession(MySession session) {
         // 创建会话

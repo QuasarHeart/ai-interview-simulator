@@ -4,7 +4,6 @@ import org.buhuiqiming.fuchuang.dto.MessageDTO;
 import org.buhuiqiming.fuchuang.entity.MyMessage;
 import org.buhuiqiming.fuchuang.mapper.MessageMapper;
 import org.buhuiqiming.fuchuang.service.ChatService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -12,8 +11,11 @@ import java.util.List;
 @Service
 public class ChatServiceImpl implements ChatService {
 
-    @Autowired
     private MessageMapper messageMapper;
+
+    public ChatServiceImpl(MessageMapper messageMapper) {
+        this.messageMapper = messageMapper;
+    }
 
     @Override
     public void saveMessage(MyMessage message) {

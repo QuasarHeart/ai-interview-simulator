@@ -25,11 +25,11 @@ import java.util.Map;
 @Slf4j
 @Service
 public class UserServiceImpl implements UserService {
-    private UserMapper userMapper;
-    private CodeService codeService;
-    private JwtUtils jwtUtils;
-    private StringRedisTemplate stringRedisTemplate;
-    private URLAK urlAK;
+    private final UserMapper userMapper;
+    private final CodeService codeService;
+    private final JwtUtils jwtUtils;
+    private final StringRedisTemplate stringRedisTemplate;
+    private final URLAK urlAK;
 
     public UserServiceImpl(UserMapper userMapper, CodeService codeService, JwtUtils jwtUtils, StringRedisTemplate stringRedisTemplate, URLAK urlAK) {
         this.userMapper = userMapper;
@@ -59,8 +59,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public User getUserBasicInfo() {
         Long id = UserContext.get();
-        User user= userMapper.getUserBasicInfo(id);
-        return user;
+        return userMapper.getUserBasicInfo(id);
     }
     @Override
     @Transactional(rollbackFor = Exception.class)
