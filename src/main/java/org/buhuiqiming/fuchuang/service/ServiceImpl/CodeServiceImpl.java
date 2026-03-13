@@ -15,8 +15,8 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class CodeServiceImpl implements CodeService {
 
-    private JavaMailSender mailSender;
-    private StringRedisTemplate redisTemplate;
+    private final JavaMailSender mailSender;
+    private final StringRedisTemplate redisTemplate;
     public CodeServiceImpl(JavaMailSender mailSender, StringRedisTemplate redisTemplate) {
         this.mailSender = mailSender;
         this.redisTemplate = redisTemplate;
