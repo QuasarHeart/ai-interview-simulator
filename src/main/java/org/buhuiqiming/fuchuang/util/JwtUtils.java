@@ -65,4 +65,18 @@ public class JwtUtils {
                     .getPayload().get("id", Long.class);
             UserContext.set(id);
     }
+
+    /**
+     * 获取解析的userId
+     *
+     * @param jwt
+     * @return userId
+     */
+    public Long getUserIdFromToken(String jwt) {
+        return Jwts.parser()
+                .verifyWith(key) // 验证密钥
+                .build()
+                .parseSignedClaims(jwt)
+                .getPayload().get("id", Long.class);
+    }
 }
