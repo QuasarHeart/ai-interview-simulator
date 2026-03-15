@@ -29,7 +29,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .allowedOrigins("*") // 允许的域名
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS") // 允许的方法
                 .allowedHeaders("*") // 允许的请求头
-                .allowCredentials(true) // 是否允许携带 Cookie
                 .maxAge(3600); // 预检请求的有效期（秒）
     }
 }
