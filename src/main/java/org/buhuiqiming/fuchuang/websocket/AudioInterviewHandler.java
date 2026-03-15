@@ -10,7 +10,6 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.handler.BinaryWebSocketHandler;
 
-import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutionException;
 
 @Slf4j
@@ -56,14 +55,10 @@ public class AudioInterviewHandler extends BinaryWebSocketHandler {
             log.warn("音频转发失败，Python端连接未开启");
         }
 
-        // ToDo 异步处理对于前端传送音频流的存储操作
-//        Long userId = (Long) session.getAttributes().get("userId");
-//        // 获取前端传来的音频二进制流
-//        ByteBuffer payload = message.getPayload();
-//        byte[] audioBytes = payload.array();
+        // 异步处理对于前端传送音频流的存储操作
+        Long userId = (Long) session.getAttributes().get("userId");
+        byte[] audio = message.getPayload().array();
 
-        // 测试打印：
-        // log.debug("收到用户 {} 发来的音频数据，大小: {} bytes", userId, audioBytes.length);
     }
 
     @Override
