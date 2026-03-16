@@ -1,8 +1,23 @@
-from fastapi import FastAPI, BackgroundTasks, HTTPException
+import sys
+import io
+import traceback
 import uvicorn
+import json
+import json_repair
+
+# 强制标准输出为 utf-8，避免 ascii 编码报错
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
+
+from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi.responses import StreamingResponse
 
 from app.schemas.schemas import StartRequest, FollowupRequest, AnalysisRequest, ReportRequest
-from app.LLM_engine.engine import LLMEngine  # 确保路径与你实际文件一致
+from app.LLM_engine.engine import LLMEngine  # 你的实际路径
 
 app = FastAPI(title="AI 面试官 ML-Service API")
 
@@ -10,21 +25,34 @@ app = FastAPI(title="AI 面试官 ML-Service API")
 engine = LLMEngine()
 
 
+# ========= 公共：按块发送 token（减少事件数量） =========
+async def _yield_text_in_chunks(text: str, field: str, chunk_size: int = 12):
+    buf = []
+    for ch in text:
+        buf.append(ch)
+        if len(buf) >= chunk_size:
+            part = "".join(buf)
+            yield f"data: {json.dumps({'type': 'token', 'field': field, 'content': part}, ensure_ascii=False)}\n\n"
+            buf = []
+    if buf:
+        part = "".join(buf)
+        yield f"data: {json.dumps({'type': 'token', 'field': field, 'content': part}, ensure_ascii=False)}\n\n"
+
+
 # ==========================================
-# 接口 1：生成首轮面试问题
+# 接口 1：生成首轮面试问题（同步）
 # ==========================================
 @app.post("/api/v1/interview/start")
 async def start_interview(request: StartRequest):
-    print(f"[Start] 收到会话: {request.session_id}, 岗位: {request.job_position}")
+    print(f"[Start] session={request.session_id}, job={request.job_position}")
     try:
         ai_result = await engine.generate_first_question(request)
-
         return {
             "code": 200,
             "message": "success",
             "data": {
                 "session_id": request.session_id,
-                "round_id": 1,  # 首轮固定1
+                "round_id": 1,
                 "question": ai_result["question"],
                 "flow_control": ai_result["flow_control"],
             },
@@ -35,11 +63,53 @@ async def start_interview(request: StartRequest):
 
 
 # ==========================================
-# 接口 2：生成追问问题
+# 接口 1-Stream：首轮问题流式（只给用户展示 question）
+# ==========================================
+@app.post("/api/v1/interview/start/stream")
+async def start_interview_stream(request: StartRequest):
+    print(f"[Start-Stream] session={request.session_id}, job={request.job_position}")
+
+    async def event_gen():
+        raw_acc = ""
+        try:
+            async for token in engine.stream_first_question(request):
+                raw_acc += token
+
+            parsed_raw = json_repair.loads(raw_acc)
+            if not isinstance(parsed_raw, dict):
+                raise ValueError(f"LLM返回不是JSON对象: {type(parsed_raw).__name__}")
+            parsed: dict = parsed_raw
+
+            question = str(parsed.get("question", ""))
+            flow_control_raw = parsed.get("flow_control", {"stage_transition": "continue", "target_stage": "intro"})
+            flow_control = flow_control_raw if isinstance(flow_control_raw, dict) else {
+                "stage_transition": "continue",
+                "target_stage": "intro"
+            }
+
+            # 用户可见字段：question（按块流式）
+            async for evt in _yield_text_in_chunks(question, "question", chunk_size=12):
+                yield evt
+
+            # 非展示字段末尾一次性给前端
+            yield f"data: {json.dumps({'type': 'meta', 'session_id': request.session_id, 'round_id': 1, 'flow_control': flow_control}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
+
+        except Exception:
+            err_trace = traceback.format_exc()
+            print("\n[START_STREAM_ERROR_TRACE]\n" + err_trace)
+            yield f"data: {json.dumps({'type': 'error', 'message': 'start stream failed, check server log'}, ensure_ascii=True)}\n\n"
+            yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=True)}\n\n"
+
+    return StreamingResponse(event_gen(), media_type="text/event-stream")
+
+
+# ==========================================
+# 接口 2：生成追问问题（同步）
 # ==========================================
 @app.post("/api/v1/interview/followup")
 async def followup_interview(request: FollowupRequest):
-    print(f"[Followup] 收到会话: {request.session_id}, 第 {request.round_id} 轮")
+    print(f"[Followup] session={request.session_id}, round={request.round_id}")
     try:
         ai_result = await engine.generate_following_question(request)
 
@@ -61,22 +131,69 @@ async def followup_interview(request: FollowupRequest):
 
 
 # ==========================================
-# 接口 3：回答综合分析
+# 接口 2-Stream：追问流式（展示 question + immediate_feedback）
+# ==========================================
+@app.post("/api/v1/interview/followup/stream")
+async def followup_interview_stream(request: FollowupRequest):
+    print(f"[Followup-Stream] session={request.session_id}, round={request.round_id}")
+
+    async def event_gen():
+        raw_acc = ""
+        try:
+            async for token in engine.stream_following_question(request):
+                raw_acc += token
+
+            parsed_raw = json_repair.loads(raw_acc)
+            if not isinstance(parsed_raw, dict):
+                raise ValueError(f"LLM返回不是JSON对象: {type(parsed_raw).__name__}")
+            parsed: dict = parsed_raw
+
+            question = str(parsed.get("question", ""))
+            immediate_feedback = str(parsed.get("immediate_feedback", ""))
+            updated_history_summary = str(parsed.get("updated_history_summary", ""))
+
+            flow_control_raw = parsed.get(
+                "flow_control",
+                {"stage_transition": "continue", "target_stage": request.flow_control.target_stage}
+            )
+            flow_control = flow_control_raw if isinstance(flow_control_raw, dict) else {
+                "stage_transition": "continue",
+                "target_stage": request.flow_control.target_stage
+            }
+
+            # 用户可见字段按块流式
+            async for evt in _yield_text_in_chunks(question, "question", chunk_size=12):
+                yield evt
+            async for evt in _yield_text_in_chunks(immediate_feedback, "immediate_feedback", chunk_size=12):
+                yield evt
+
+            # 非展示字段一次性返回
+            yield f"data: {json.dumps({'type': 'meta', 'session_id': request.session_id, 'round_id': request.round_id, 'updated_history_summary': updated_history_summary, 'flow_control': flow_control}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
+
+        except Exception:
+            err_trace = traceback.format_exc()
+            print("\n[FOLLOWUP_STREAM_ERROR_TRACE]\n" + err_trace)
+            yield f"data: {json.dumps({'type': 'error', 'message': 'followup stream failed, check server log'}, ensure_ascii=True)}\n\n"
+            yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=True)}\n\n"
+
+    return StreamingResponse(event_gen(), media_type="text/event-stream")
+
+
+# ==========================================
+# 接口 3：回答综合分析（同步）
 # ==========================================
 @app.post("/api/v1/interview/analysis")
 async def analyze_answer(request: AnalysisRequest):
-    print(f"[Analysis] 分析请求: {request.session_id}")
+    print(f"[Analysis] session={request.session_id}")
     try:
         ai_result = await engine.analyze_answer(request)
 
-        # 兼容你的报告结构：analysis 下放三大维度 + 分数 + 反馈
-        # 如果 prompt 返回 dimension_details，则从里面拆
         if "dimension_details" in ai_result:
             professional = ai_result["dimension_details"]["professional"]
             cognition = ai_result["dimension_details"]["cognition"]
             expression = ai_result["dimension_details"]["expression"]
         else:
-            # 兼容旧结构
             professional = ai_result.get("professional", {})
             cognition = ai_result.get("cognition", {})
             expression = ai_result.get("expression", {})
@@ -106,24 +223,19 @@ async def analyze_answer(request: AnalysisRequest):
 
 
 # ==========================================
-# 接口 4：面试报告生成 (异步接口演示)
+# 接口 4：面试报告生成（异步任务受理）
 # ==========================================
 async def mock_async_report_task(session_id: str, callback_url: str):
     import asyncio
-    print(f"[后台任务] 正在为 {session_id} 生成报告...")
+    print(f"[Report-Task] generating report for session={session_id}")
     await asyncio.sleep(5)
-    print(f"[后台任务] 报告生成完毕！准备 POST 给回调地址: {callback_url}")
+    print(f"[Report-Task] done, callback={callback_url}")
     # TODO: 用 httpx post 到 callback_url
 
 
 @app.post("/api/v1/interview/report")
 async def generate_report(request: ReportRequest, background_tasks: BackgroundTasks):
-    print(f"[Report] 收到生成报告请求: {request.session_id}")
-
-    # 可选：这里可以同步先调用一次 LLM 生成报告内容（当前先不阻塞接口）
-    # report_result = await engine.generate_overall_report(request)
-    # TODO: 把 report_result 在后台任务里推送到 callback_url
-
+    print(f"[Report] session={request.session_id}")
     background_tasks.add_task(mock_async_report_task, request.session_id, request.callback_url)
 
     return {

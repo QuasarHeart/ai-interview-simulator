@@ -9,7 +9,7 @@ from typing import Dict
 from jinja2 import Environment, StrictUndefined
 from openai import AsyncOpenAI
 from app.schemas.schemas import StartRequest, FollowupRequest, AnalysisRequest, ReportRequest
-
+from typing import AsyncGenerator
 
 @dataclass
 class Settings:
@@ -46,7 +46,7 @@ settings = Settings()
 
 class LLMEngine:
     def __init__(self):
-        self.api_key = os.getenv("DASHSCOPE_API_KEY", "你的APIkey")
+        self.api_key = os.getenv("DASHSCOPE_API_KEY", "sk-a94c9f13ac90414ebf32016edf803e54")
         self.base_url = os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
         self.model = os.getenv("JUDGE_MODEL", "qwen-plus")
         self.temperature = float(os.getenv("SCORING_TEMPERATURE", "0.2"))
@@ -85,6 +85,70 @@ class LLMEngine:
 
         raw_text = response.choices[0].message.content or "{}"
         return json_repair.loads(raw_text)
+    
+    # 2) 把这两个方法加到 class LLMEngine 里（放在 _invoke_llm 后面最合适）
+
+    async def stream_llm_raw_text(self, prompt_config: dict, kwargs_dict: dict) -> AsyncGenerator[str, None]:
+        """
+        流式返回模型原始文本 token（通常是 JSON 字符串片段）
+        """
+        env = Environment(undefined=StrictUndefined)
+
+        system_role = env.from_string(prompt_config["system_role"]).render(**kwargs_dict)
+        rules = env.from_string(prompt_config["rules"]).render(**kwargs_dict)
+        format_requirements = env.from_string(prompt_config["format_requirements"]).render(**kwargs_dict)
+        user_prompt = env.from_string(prompt_config["input_context"]).render(**kwargs_dict)
+        system_prompt = f"{system_role}\n\n{rules}\n\n{format_requirements}"
+
+        stream = await self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=self.temperature,
+            stream=True
+        )
+
+        async for chunk in stream:
+            delta = None
+            if chunk.choices and chunk.choices[0].delta:
+                delta = chunk.choices[0].delta.content
+            if delta:
+                yield delta
+
+
+    async def stream_first_question(self, req: StartRequest) -> AsyncGenerator[str, None]:
+        """
+        start 场景专用：返回原始 token 流
+        """
+        kwargs = {
+            "job_position": req.job_position,
+            "resume_content": req.resume_content,
+            "interviewer_style": req.interview_config.interviewer_style,
+            "company_context": req.interview_config.company_context,
+            "difficulty": req.interview_config.difficulty
+        }
+        async for t in self.stream_llm_raw_text(self.prompts["start"], kwargs):
+            yield t
+
+
+    async def stream_following_question(self, req: FollowupRequest) -> AsyncGenerator[str, None]:
+        """
+        followup 场景专用：返回原始 token 流
+        """
+        kwargs = {
+            "current_stage": req.flow_control.target_stage,
+            "jd_summary": req.background.jd_summary,
+            "resume_summary": req.background.resume_summary,
+            "interviewer_style": req.interview_config.interviewer_style,
+            "company_context": req.interview_config.company_context,
+            "difficulty": req.interview_config.difficulty,
+            "history_summary": req.history_data.history_summary,
+            "recent_history": "\n".join([f"[{item.role}]: {item.content}" for item in req.history_data.recent_history])
+        }
+        async for t in self.stream_llm_raw_text(self.prompts["followup"], kwargs):
+            yield t
 
     async def generate_first_question(self, req: StartRequest) -> dict:
         kwargs = {
