@@ -7,7 +7,6 @@ import org.buhuiqiming.fuchuang.service.UserService;
 import org.buhuiqiming.fuchuang.util.UserContext;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -21,7 +20,7 @@ public class LoginController {
     }
 
     @GetMapping("/login")
-    public Result login(@RequestBody LoginDTO loginDTO){
+    public Result login( LoginDTO loginDTO){
         return Result.success(userService.login(loginDTO));
     }
     @PostMapping("/logout")
