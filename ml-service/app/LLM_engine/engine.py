@@ -10,6 +10,7 @@ from jinja2 import Environment, StrictUndefined
 from openai import AsyncOpenAI
 from app.schemas.schemas import StartRequest, FollowupRequest, AnalysisRequest, ReportRequest
 from typing import AsyncGenerator
+from pathlib import Path
 
 @dataclass
 class Settings:
@@ -46,22 +47,30 @@ settings = Settings()
 
 class LLMEngine:
     def __init__(self):
-        self.api_key = os.getenv("DASHSCOPE_API_KEY", "sk-a94c9f13ac90414ebf32016edf803e54")
+        #这里的在运行之前需要设置环境变量加上apikey或者硬编码apikey
+        self.api_key = os.getenv("DASHSCOPE_API_KEY", "APIkey")
         self.base_url = os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
         self.model = os.getenv("JUDGE_MODEL", "qwen-plus")
         self.temperature = float(os.getenv("SCORING_TEMPERATURE", "0.2"))
 
         self.client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
+        # ===== 可移植路径：基于当前文件位置，不再硬编码 =====
+        # engine.py 位于: ml-service/app/LLM_engine/engine.py
+        # app 目录:       ml-service/app
+        app_dir = Path(__file__).resolve().parent.parent
 
         self.prompts = {
-            "start": self._load_yaml("/home/yys/ai-interview-simulator/ml-service/app/prompts/start/start_v4.yaml"),
-            "followup": self._load_yaml("/home/yys/ai-interview-simulator/ml-service/app/prompts/follow_up/follow_up_v4.yaml"),
-            "analysis": self._load_yaml("/home/yys/ai-interview-simulator/ml-service/app/prompts/analysis/scoring_v3.yaml"),
-            "report": self._load_yaml("/home/yys/ai-interview-simulator/ml-service/app/prompts/report/report_v4.yaml"),
+            "start": self._load_yaml(app_dir / "prompts" / "start" / "start_v4.yaml"),
+            "followup": self._load_yaml(app_dir / "prompts" / "follow_up" / "follow_up_v4.yaml"),
+            "analysis": self._load_yaml(app_dir / "prompts" / "analysis" / "scoring_v3.yaml"),
+            "report": self._load_yaml(app_dir / "prompts" / "report" / "report_v4.yaml"),
         }
 
-    def _load_yaml(self, filepath: str) -> dict:
-        with open(filepath, "r", encoding="utf-8") as f:
+    def _load_yaml(self, path):
+        path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Prompt file not found: {path}")
+        with path.open("r", encoding="utf-8") as f:
             return yaml.safe_load(f)
 
     async def _invoke_llm(self, prompt_config: dict, kwargs_dict: dict) -> dict:
