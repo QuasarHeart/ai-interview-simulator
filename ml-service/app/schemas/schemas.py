@@ -84,7 +84,7 @@ class RoundResultItem(BaseModel):
     dimension_scores: DimensionScores
     dimension_details: DimensionDetails
     overall_feedback: str
-    final_score: str
+    final_score: float
     improvement_suggestions: List[str]
 
 # ==========================================
