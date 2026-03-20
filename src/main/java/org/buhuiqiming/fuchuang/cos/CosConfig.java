@@ -1,12 +1,14 @@
 package org.buhuiqiming.fuchuang.cos;
 
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import static java.lang.System.getenv;
 
 @Data
 @Component
+@Slf4j
 public class CosConfig {
     private final String secretId;
     private final String secretKey;
@@ -15,6 +17,7 @@ public class CosConfig {
     private final String appId;
 
     public CosConfig() {
+        log.info("初始化云存储");
         this.secretId = getenv("COS_SECRET_ID");
         this.secretKey = getenv("COS_SECRET_KEY");
         this.bucket = getenv("COS_BUCKET");
