@@ -13,5 +13,4 @@ public interface SessionMapper {
     @Insert("insert into chat_session(user_id,create_time,title,session_type) values(#{userId},#{createTime},#{title},#{sessionType})")
     void createSession(MySession mySession);
 
-    MySession getSessionByUserId(Long userId,Integer page,Integer pageSize);
 }

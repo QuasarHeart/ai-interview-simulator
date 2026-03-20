@@ -52,15 +52,10 @@ public class FileServiceImpl implements FileService {
                 }
                 extension = getExtension(fileName);
                 key = dir + "/" + UserContext.get() + "." + extension;
-                userMapper.addAvatar(UserContext.get(), key);
             }
             else if(request.getMethod().equals("GET")){
-                if(dir.equals("avatar"))
-                    key = userMapper.getAvatar(UserContext.get());
-                else
-                    key = dir + "/" + request.getParameter("filename");
+                    key = dir + "/" + UserContext.get() + "." + extension;
             }
-
 
             log.info("URL签名，签名方法:{},header:{},param:{},key:{}", request.getMethod(), headers, params, key);
             return urlAK.generatePresignedUrl(key,HttpMethodName.valueOf(request.getMethod()), headers, params, false, true);
