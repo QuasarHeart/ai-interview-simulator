@@ -13,6 +13,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
+
+import java.util.concurrent.TimeUnit;
+
 @Component
 @Slf4j
 public class LoginInterceptor implements HandlerInterceptor {
@@ -65,7 +68,7 @@ public class LoginInterceptor implements HandlerInterceptor {
 
                 log.info("更新token: {}", newToken);
                 stringRedisTemplate.delete(key);
-                stringRedisTemplate.opsForValue().set(key,newToken);
+                stringRedisTemplate.opsForValue().set(key,newToken, 6, TimeUnit.MINUTES);
                 throw new TokenException(40105, newToken, "Token已过期,请更换新token");
             }
         } catch (SignatureException e) {
