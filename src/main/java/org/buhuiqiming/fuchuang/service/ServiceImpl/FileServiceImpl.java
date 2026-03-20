@@ -52,6 +52,10 @@ public class FileServiceImpl implements FileService {
                 }
                 extension = getExtension(fileName);
                 key = dir + "/" + UserContext.get() + "." + extension;
+                if(dir.equals("avatar"))
+                    userMapper.updateAvatar(key,UserContext.get());
+                else if(dir.equals("vita"))
+                    userMapper.updateVita(key,UserContext.get());
             }
             else if(request.getMethod().equals("GET")){
                     key = dir + "/" + UserContext.get() + "." + extension;
