@@ -39,10 +39,10 @@ public interface UserMapper {
     @Select("select avatar from user where user_id = #{id}")
     String getAvatar(Long id);
 
-    @Update("update user set vita = #{vita} where id = #{id}")
+    @Update("update user set vita = #{vita} where user_id = #{id}")
     void updateVita(@Param("vita")String vita,@Param("id") Long id);
 
-    @Select("select vita from user where id = #{id}")
+    @Select("select vita from user where user_id = #{id}")
     String getVita(Long id);
     void init_user();
     void init_account();
