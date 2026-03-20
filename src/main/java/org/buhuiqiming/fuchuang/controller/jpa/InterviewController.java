@@ -1,6 +1,5 @@
 package org.buhuiqiming.fuchuang.controller.jpa;
 
-import jakarta.websocket.server.PathParam;
 import lombok.extern.slf4j.Slf4j;
 import org.buhuiqiming.fuchuang.VO.InterviewVO;
 import org.buhuiqiming.fuchuang.dto.CreateInterviewDTO;
@@ -8,7 +7,6 @@ import org.buhuiqiming.fuchuang.dto.Result;
 import org.buhuiqiming.fuchuang.dto.SubmitAnswerTextDTO;
 import org.buhuiqiming.fuchuang.service.InterviewService;
 import org.buhuiqiming.fuchuang.util.ASR;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -30,7 +28,6 @@ public class InterviewController {
     private final InterviewService interviewService;
     private final ASR asr;
 
-    @Autowired
     public InterviewController(InterviewService interviewService,
                                ASR asr) {
         this.interviewService = interviewService;

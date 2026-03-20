@@ -64,8 +64,7 @@
         user_id INT PRIMARY KEY NOT NULL,
         gender TINYINT,
         nick_name VARCHAR(50),
-        description VARCHAR(100),
-        avatar VARCHAR(50)
+        description VARCHAR(100)
         );
     </update>
 
