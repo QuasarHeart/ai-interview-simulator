@@ -37,7 +37,7 @@ public class FileServiceImpl implements FileService {
 
     @Transactional
     @Override
-    public URL generateCOSURL(HttpServletRequest  request,String dir) {
+    public URL generateCOSURL(HttpServletRequest request,String dir) {
 
             String extension="";
             Map<String,String> params = new HashMap<>();

@@ -19,7 +19,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns(               // 排除不需要登录的接口
                         "/login",              // 登录接口
                         "/code",// 发送验证码
-                        "/users/resetPassword"
+                        "/users/resetPassword",
+                        "/api/v1/interviews/**"
                 );
     }
 }
