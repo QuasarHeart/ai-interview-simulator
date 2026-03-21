@@ -31,7 +31,7 @@ class HistoryData(BaseModel):
     recent_history: List[RecentHistoryItem]
 
 class ContentToAnalyze(Background): 
-    # 继承 Background，自动包含 job_position, resume_summary, jd_summary
+    # 继承 Background，自动包含 job_position, resume_content, jd_summary
     question: str
     user_answer: str
     history_summary: str
@@ -95,6 +95,7 @@ class StartRequest(BaseModel):
     """对应 /api/v1/interview/start"""
     session_id: str
     job_position: str
+    jd_summary: str
     resume_content: str
     interview_config: InterviewConfig
     flow_control: FlowControl

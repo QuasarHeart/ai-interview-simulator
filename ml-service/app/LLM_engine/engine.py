@@ -136,7 +136,8 @@ class LLMEngine:
             "resume_content": req.resume_content,
             "interviewer_style": req.interview_config.interviewer_style,
             "company_context": req.interview_config.company_context,
-            "difficulty": req.interview_config.difficulty
+            "difficulty": req.interview_config.difficulty,
+            "jd_summary": req.jd_summary,
         }
         async for t in self.stream_llm_raw_text(self.prompts["start"], kwargs):
             yield t
