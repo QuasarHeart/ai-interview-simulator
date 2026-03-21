@@ -17,7 +17,7 @@ public class TurnEvaluationResult implements Serializable {
     @Data
     public static class DimensionScores implements Serializable {
         private Double professional;
-        private Integer cognition;
+        private Double cognition;
         private Double expression;
     }
 

@@ -36,6 +36,8 @@ public class InterviewService {
     private final ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor();
     private final ObjectMapper objectMapper;
 
+    private final int historyTurnsCount = 4;
+
     @Autowired
     public InterviewService(InterviewRepository interviewRepository,
                             InterviewTurnsRepository interviewTurnsRepository,
@@ -127,6 +129,45 @@ public class InterviewService {
         return interviewBeginQue;
     }
 
+    // 获取面试历史会话
+    public List<InterviewFollowByRequest.HistoryData.HistoryItem> getInterviewHistory(String interviewId){
+        List<InterviewFollowByRequest.HistoryData.HistoryItem> list = new ArrayList<>();
+
+        InterviewEntity interview = getInterviewOrElseThrow(interviewId);
+        int turnsNumber = interview.getTurnsNumber();
+        int count = historyTurnsCount;
+        while (count > 0 && turnsNumber > 0) {
+            InterviewTurnsEntity interviewTurnsEntity = interviewTurnsRepository.findByInterviewIdAndTurnNumber(interviewId, turnsNumber);
+            if (interviewTurnsEntity == null) {
+                log.error("interviewTurnsEntity is null for interviewId: {}, turn: {}", interviewId, turnsNumber);
+                throw new ServiceException(500, "存储流程出错，请重试");
+            }
+
+            // 防止为 null
+            String answerText = interviewTurnsEntity.getAnswerText() != null ? interviewTurnsEntity.getAnswerText() : "";
+            String questionText = interviewTurnsEntity.getQuestion() != null ? interviewTurnsEntity.getQuestion() : "";
+
+            InterviewFollowByRequest.HistoryData.HistoryItem itemAns = InterviewFollowByRequest.HistoryData.HistoryItem.builder()
+                    .role("user")
+                    .content(answerText)
+                    .build();
+
+            InterviewFollowByRequest.HistoryData.HistoryItem itemQue = InterviewFollowByRequest.HistoryData.HistoryItem.builder()
+                    .role("assistant")
+                    .content(questionText)
+                    .build();
+
+            // 重点：使用头插法 (index: 0)，先插入回答，再插入问题。
+            // 这样能保证倒序遍历出来的历史在最终 List 中是老对话在前、新对话在后，且 Q 在 A 之前。
+            list.add(0, itemAns);
+            list.add(0, itemQue);
+
+            turnsNumber--;
+            count--;
+        }
+        return list;
+    }
+
     /**
      * 接收Python部分传递过来的SSE流
      */
@@ -155,16 +196,10 @@ public class InterviewService {
                         .jdSummary("岗位要求") // ToDo 岗位要求
                         .build();
 
-                // ToDo 历史会话
-                List<InterviewFollowByRequest.HistoryData.HistoryItem> historyItems = List.of(
-                        InterviewFollowByRequest.HistoryData.HistoryItem.builder()
-                                .role("assistant")
-                                .content("无")
-                                .build()
-                );
+                List<InterviewFollowByRequest.HistoryData.HistoryItem> historyItems = getInterviewHistory(interviewId);
 
                 var history = InterviewFollowByRequest.HistoryData.builder()
-                        .historySummary("会话总结") // ToDo 早期对话总结 ？
+                        .historySummary(interview.getHistorySummary())
                         .recentHistory(historyItems)
                         .build();
                 var flow = InterviewFollowByRequest.FlowControl.builder()
@@ -314,7 +349,12 @@ public class InterviewService {
         interviewRepository.save(interview);
     }
 
-    // 获取历史面试列表（分页）
+    // 获取单轮回答评价
+    public void getTurnsJudgement(String interviewId){
+
+    }
+
+    // 获取历史面试列表
     public List<InterviewVO> getInterviewHistoryList(String userId){
         List<InterviewEntity> interviews = interviewRepository.findAllByUserIdOrderByCreateTimeDesc(userId);
 

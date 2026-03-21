@@ -2,6 +2,7 @@ package org.buhuiqiming.fuchuang.controller.jpa;
 
 import jakarta.websocket.server.PathParam;
 import lombok.extern.slf4j.Slf4j;
+import org.buhuiqiming.fuchuang.VO.InterviewTurnsVO;
 import org.buhuiqiming.fuchuang.VO.InterviewVO;
 import org.buhuiqiming.fuchuang.dto.CreateInterviewDTO;
 import org.buhuiqiming.fuchuang.dto.Result;
@@ -96,7 +97,7 @@ public class InterviewController {
     public SseEmitter submitAnswerVoice(@PathVariable String interviewId, @RequestParam("file") MultipartFile voiceAnswer) throws Exception{
         // String audioAns = interviewService.getAudioToTextSimpleASR(voiceAnswer);
         // interviewService.getAudioToTextASR(voiceAnswer);
-        // ToDo 这里需要等待腾讯云进行回调
+        // ToDo 如果使用录音文件识别，这里需要等待腾讯云进行回调
 
         String audioAns = asr.getAudioToTextASRFast(voiceAnswer);
         return interviewService.streamPythonResponse(interviewId, audioAns);
@@ -139,6 +140,15 @@ public class InterviewController {
 
         List<InterviewVO> data = interviewService.getInterviewHistoryList(mockUserId);
 
+        return Result.success(data);
+    }
+
+    /**
+     * 获取用户某一次面试的相关记录
+     */
+    @GetMapping("/{interviewId}/history")
+    public Result getInterviewHistory(@PathVariable String interviewId) throws Exception{
+        List<InterviewTurnsVO> data = interviewService.getInterviewTurns(interviewId);
         return Result.success(data);
     }
 }

@@ -42,7 +42,7 @@ public class InterviewFollowByRequest {
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public static class HistoryData {
         private String historySummary;
-        private List<HistoryItem> recentHistory; // 如果有具体结构可以再建个类
+        private List<HistoryItem> recentHistory;
 
         @Data
         @Builder
