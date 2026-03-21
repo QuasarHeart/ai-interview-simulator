@@ -25,6 +25,7 @@ format_requirements: |
 
 input_context: |
   <job_position>{{job_position}}</job_position>
+  <jd_summary>{{jd_summary}}</jd_summary>
   <resume_content>{{resume_content}}</resume_content>
   <interviewer_style>{{interviewer_style}}</interviewer_style>
   <difficulty>{{difficulty}}</difficulty>
