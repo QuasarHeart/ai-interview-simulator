@@ -32,6 +32,6 @@ input_context: |
   <difficulty>{{difficulty}}</difficulty>
   <company_context>{{company_context or "通用风格"}}</company_context>
   <jd_summary>{{jd_summary}}</jd_summary>
-  <resume_summary>{{resume_summary}}</resume_summary>
+  <resume_content>{{resume_content}}</resume_content>
   <recent_history>{{recent_history}}</recent_history>
   <history_summary>{{history_summary}}</history_summary>

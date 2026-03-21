@@ -48,7 +48,7 @@ settings = Settings()
 class LLMEngine:
     def __init__(self):
         #这里的在运行之前需要设置环境变量加上apikey或者硬编码apikey
-        self.api_key = os.getenv("DASHSCOPE_API_KEY", "APIkey")
+        self.api_key = os.getenv("DASHSCOPE_API_KEY", "apikey")
         self.base_url = os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
         self.model = os.getenv("JUDGE_MODEL", "qwen-plus")
         self.temperature = float(os.getenv("SCORING_TEMPERATURE", "0.2"))
@@ -149,7 +149,7 @@ class LLMEngine:
         kwargs = {
             "current_stage": req.flow_control.target_stage,
             "jd_summary": req.background.jd_summary,
-            "resume_summary": req.background.resume_summary,
+            "resume_content": req.background.resume_content,
             "interviewer_style": req.interview_config.interviewer_style,
             "company_context": req.interview_config.company_context,
             "difficulty": req.interview_config.difficulty,
@@ -173,7 +173,7 @@ class LLMEngine:
         kwargs = {
             "current_stage": req.flow_control.target_stage,
             "jd_summary": req.background.jd_summary,
-            "resume_summary": req.background.resume_summary,
+            "resume_content": req.background.resume_content,
             "interviewer_style": req.interview_config.interviewer_style,
             "company_context": req.interview_config.company_context,  # 补
             "difficulty": req.interview_config.difficulty,
@@ -187,7 +187,7 @@ class LLMEngine:
             "current_stage": req.current_stage,
             "job_position": req.content_to_analyze.job_position,
             "jd_summary": req.content_to_analyze.jd_summary,
-            "resume_summary": req.content_to_analyze.resume_summary,
+            "resume_content": req.content_to_analyze.resume_content,
             "question": req.content_to_analyze.question,
             "user_answer": req.content_to_analyze.user_answer,
             "history_summary": req.content_to_analyze.history_summary,
@@ -281,7 +281,7 @@ class LLMEngine:
         kwargs = {
             "job_position": req.interview_context.job_position,
             "jd_summary": req.interview_context.jd_summary,
-            "resume_summary": req.interview_context.resume_summary,  # 补
+            "resume_content": req.interview_context.resume_content,  # 补   
             "difficulty": req.interview_config.difficulty,           # 补
             "total_rounds": req.interview_context.total_rounds,
             "interview_duration_seconds": req.interview_context.interview_duration_seconds,
