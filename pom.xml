@@ -133,6 +133,13 @@
             <artifactId>jackson-dataformat-xml</artifactId>
             <version>2.15.2</version>
         </dependency>
+        <!-- Source: https://mvnrepository.com/artifact/com.openai/openai-java -->
+        <dependency>
+            <groupId>com.openai</groupId>
+            <artifactId>openai-java</artifactId>
+            <version>4.29.0</version>
+            <scope>compile</scope>
+        </dependency>
     </dependencies>
 
 

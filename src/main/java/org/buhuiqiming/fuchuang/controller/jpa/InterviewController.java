@@ -40,28 +40,9 @@ public class InterviewController {
     @PostMapping
     public Result createInterview(@ModelAttribute CreateInterviewDTO dto) throws Exception{
 
-        // 具体值的输出
-        System.out.println(dto);
-
-        // ToDO 用户Id的获取应该结合具体Token实现，这里先进行模拟
-        String mockUserId = "user_001";
-
-        // 简历文件判断 和 简历格式检验
-        String resumeAssetId = null;
-        MultipartFile resumeFile = dto.getResumeFile();
-
-        if (resumeFile != null && !resumeFile.isEmpty()) {
-            log.info("接收到简历文件: {}", resumeFile.getOriginalFilename());
-            // TODO: 执行云存储上传逻辑
-            // resumeAssetId = uploadToCos(resumeFile);
-            // TODO: 解析简历文本
-        } else {
-            log.info("用户未上传简历");
-        }
-
         // 面试会话特征码 interviewId 的确定
         // 创建初步的数据库interview实体类记录
-        String interviewId = interviewService.createInterview(dto, mockUserId, resumeAssetId);
+        String interviewId = interviewService.createInterview(dto);
 
         String firstQue = interviewService.startInterview(interviewId);
 

@@ -21,13 +21,14 @@ public class ResumeParserUtils {
             JsonNode root = xmlMapper.readTree(xmlBody);
 
             //将xml中object标签的id提取出来
-            String objectId = root.findValue("object").asText().trim();
-            //objectID 格式类似 avatar/.../{id}.jpg，提取id
-            String id = objectId.substring(objectId.lastIndexOf("/") + 1, objectId.lastIndexOf("."));
-
-
-            UserContext.set(Long.valueOf( id));
-
+            try {
+                String objectId = root.findValue("Object").asText().trim();
+                //objectID 格式类似 avatar/.../{id}.jpg，提取id
+                String id = objectId.substring(objectId.lastIndexOf("/") + 1, objectId.lastIndexOf("."));
+                UserContext.set(Long.valueOf(id));
+            }catch (Exception e){
+                log.error("object 解析失败");
+            }
 
             // 定位到 JobsDetail -> ResultInfo -> ObjectInfo -> ImageOCR -> text_detections
             // XML 结构，路径层级需匹配
