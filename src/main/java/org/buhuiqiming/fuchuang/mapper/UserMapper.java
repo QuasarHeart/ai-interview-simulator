@@ -39,11 +39,19 @@ public interface UserMapper {
     @Select("select avatar from user where user_id = #{id}")
     String getAvatar(Long id);
 
-    @Update("update user set vita = #{vita} where user_id = #{id}")
+    @Update("update user set vita_url = #{vita} where user_id = #{id}")
     void updateVita(@Param("vita")String vita,@Param("id") Long id);
 
-    @Select("select vita from user where user_id = #{id}")
+    @Select("select vita_url from user where user_id = #{id}")
     String getVita(Long id);
+
+    @Update("update user set vita_content = #{vita_content} where user_id = #{id}")
+    void updateVitaContent(@Param("vita_content")String vita_content,@Param("id") Long id);
+
+    @Select("select vita_content from user where user_id = #{id}")
+    String getVitaContent(Long id);
+
+
     void init_user();
     void init_account();
 

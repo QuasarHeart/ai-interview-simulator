@@ -20,9 +20,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns(               // 排除不需要登录的接口
                         "/login",              // 登录接口
                         "/code",// 发送验证码
-                        "/users/resetPassword",
-                        "/cos/analyze",
-                        "/api/v1/interviews/**"
+                        "/users/resetPassword",// 重置密码
+                        "/cos/analyze"  //COS回调
                 );
     }
     @Override

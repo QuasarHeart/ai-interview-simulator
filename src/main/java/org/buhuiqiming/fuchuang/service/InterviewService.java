@@ -1,23 +1,23 @@
 package org.buhuiqiming.fuchuang.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.buhuiqiming.fuchuang.VO.InterviewVO;
 import org.buhuiqiming.fuchuang.VO.InterviewTurnsVO;
+import org.buhuiqiming.fuchuang.VO.InterviewVO;
 import org.buhuiqiming.fuchuang.dto.*;
 import org.buhuiqiming.fuchuang.entity.jpa.InterviewEntity;
 import org.buhuiqiming.fuchuang.entity.jpa.InterviewTurnsEntity;
 import org.buhuiqiming.fuchuang.exception.ServiceException;
+import org.buhuiqiming.fuchuang.mapper.UserMapper;
 import org.buhuiqiming.fuchuang.repository.InterviewRepository;
 import org.buhuiqiming.fuchuang.repository.InterviewTurnsRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.buhuiqiming.fuchuang.util.UserContext;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-
-import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -32,20 +32,23 @@ public class InterviewService {
     private final InterviewRepository interviewRepository;
     private final InterviewTurnsRepository interviewTurnsRepository;
 
+    private final UserMapper userMapper;
+
     private final RestClient restClient;
     private final ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor();
     private final ObjectMapper objectMapper;
 
-    @Autowired
     public InterviewService(InterviewRepository interviewRepository,
                             InterviewTurnsRepository interviewTurnsRepository,
                             RestClient pythonClient,
-                            ObjectMapper objectMapper
+                            ObjectMapper objectMapper,
+                            UserMapper userMapper
     ) {
         this.interviewRepository = interviewRepository;
         this.interviewTurnsRepository = interviewTurnsRepository;
         this.restClient = pythonClient;
         this.objectMapper = objectMapper;
+        this.userMapper = userMapper;
     }
 
     // 面试会话不存在错误码判断
@@ -57,12 +60,11 @@ public class InterviewService {
         return interview;
     }
 
-    public String createInterview(CreateInterviewDTO dto, String mockUserId, String resumeAssetId) {
+    public String createInterview(CreateInterviewDTO dto) {
         System.out.println("createInterview");
         String interviewId = UUID.randomUUID().toString().replace("-", "");
-        InterviewEntity interview = new InterviewEntity(interviewId, dto.getJobRole(), dto.getDifficulty(), dto.getMode(), "CREATED");
-        interview.setUserId(mockUserId);
-        interview.setResumeAssetId(resumeAssetId);
+        InterviewEntity interview = new InterviewEntity(interviewId, dto.getJobRole(), dto.getDifficulty(), dto.getMode(), "CREATED", dto.getJobInfo(), dto.getInterviewerStyle());
+        interview.setUserId(UserContext.get());
         interviewRepository.save(interview);
         System.out.println("create interview success");
         return interviewId;
@@ -78,11 +80,11 @@ public class InterviewService {
         InterviewStartRequest requestBody = InterviewStartRequest.builder()
                 .sessionId(interviewId)
                 .jobPosition(interview.getJobRole())
-                .resumeContent("123") // 简历的解析文本
+                .resumeContent(userMapper.getVitaContent(UserContext.get())) // 简历的解析文本
                 .interviewConfig(InterviewStartRequest.InterviewConfig.builder()
                         .mode(interview.getMode())
                         .analyzeEmotion(false)
-                        .interviewerStyle("standard")
+                        .interviewerStyle(interview.getInterviewerStyle())
                         .difficulty(interview.getDifficulty())
                         .build())
                 .flowControl(InterviewStartRequest.FlowControl.builder()
@@ -98,7 +100,7 @@ public class InterviewService {
                 .body(Result.class);
         log.info("response={}", response);
         if (response == null || !Integer.valueOf(200).equals(response.getCode())) {
-            throw new ServiceException(500, "算法服务启动异常: " + (response != null ? response.getMsg() : "无响应"));
+            throw new ServiceException(500, "ml服务启动异常: " + (response != null ? response.getMsg() : "无响应"));
         }
 
         StartInterviewQueDTO data = objectMapper.convertValue(
@@ -117,6 +119,8 @@ public class InterviewService {
         interview.setStageTransition(stageTransition);
         interview.setTargetStage(targetStage);
         interview.setInterviewStatus("RUNNING");
+        //第一轮特殊处理
+        interview.setHistorySummary("当前为第一轮对话，暂无面试总结");
         int turnsNumber = interview.getTurnsNumber() + 1;
         interview.setTurnsNumber(turnsNumber);
         interviewRepository.save(interview);
@@ -145,14 +149,14 @@ public class InterviewService {
             try{
                 var config = InterviewFollowByRequest.InterviewConfig.builder()
                         .mode(interview.getMode())
-                        .interviewerStyle("standard") // ToDo 前端好像还没有这个设置，这里就硬编码先
+                        .interviewerStyle(interview.getInterviewerStyle())
                         .difficulty(interview.getDifficulty())
                         .analyzeEmotion(false)
                         .build();
                 var background = InterviewFollowByRequest.Background.builder()
                         .jobPosition(interview.getJobRole())
-                        .resumeSummary("简历总结") // ToDo 简历总结
-                        .jdSummary("岗位要求") // ToDo 岗位要求
+                        .resumeSummary(userMapper.getVitaContent(UserContext.get()))
+                        .jdSummary(interview.getJobInfo()) //职位描述
                         .build();
 
                 // ToDo 历史会话
@@ -164,7 +168,7 @@ public class InterviewService {
                 );
 
                 var history = InterviewFollowByRequest.HistoryData.builder()
-                        .historySummary("会话总结") // ToDo 早期对话总结 ？
+                        .historySummary(interview.getHistorySummary())
                         .recentHistory(historyItems)
                         .build();
                 var flow = InterviewFollowByRequest.FlowControl.builder()
@@ -181,7 +185,7 @@ public class InterviewService {
                         .build();
 
                 restClient.post()
-                        .uri("/followup/stream")
+                        .uri("http://%s:%s/followup/stream",System.getenv("ML_SERVICE_HOST"),System.getenv("ML_SERVICE_PORT"))
                         .accept(MediaType.TEXT_EVENT_STREAM)
                         .body(requestBody)
                         .exchange((request, response) ->{
