@@ -19,7 +19,7 @@ class FlowControl(BaseModel):
 
 class Background(BaseModel):
     job_position: str
-    resume_summary: str
+    resume_content: str
     jd_summary: str
 
 class RecentHistoryItem(BaseModel):
@@ -40,7 +40,7 @@ class InterviewContext(BaseModel):
     # Report 接口的特有上下文
     job_position: str
     jd_summary: str
-    resume_summary: str
+    resume_content: str
     total_rounds: int
     interview_duration_seconds: int
 

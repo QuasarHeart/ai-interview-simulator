@@ -79,13 +79,13 @@ input_context: |
   {{history_summary | default("无历史记录")}}
   </history_summary>
 
-  <resume_summary>
-  {{resume_summary}}
-  </resume_summary>
+  <resume_content>
+  {{resume_content}}
+  </resume_content>
 
   <difficulty>
   {{difficulty}}
-  <difficulty>
+  </difficulty>
 
   <question>
   {{question}}
