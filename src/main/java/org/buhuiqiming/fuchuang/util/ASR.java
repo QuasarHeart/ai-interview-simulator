@@ -28,7 +28,7 @@ public class ASR {
     public final AsrClient asrClient;
 
     public ASR(){
-        this.cred = new Credential(System.getenv("TENCENTCLOUD_SECRET_ID"), System.getenv("TENCENTCLOUD_SECRET_KEY"));
+        this.cred = new Credential(System.getenv("COS_SECRET_ID"), System.getenv("COS_SECRET_KEY"));
         asrClient = initAsrClient();
     }
 
@@ -89,7 +89,7 @@ public class ASR {
         try{
             byte[] audioBytes = audio.getBytes();
             com.tencent.asr.model.Credential credential = com.tencent.asr.model.Credential.builder().secretId(System.getenv("TENCENTCLOUD_SECRET_ID")).secretKey(System.getenv("TENCENTCLOUD_SECRET_KEY")).build();
-            FlashRecognizer recognizer = SpeechClient.newFlashRecognizer(System.getenv("TENCENTCLOUD_APP_ID"), credential);
+            FlashRecognizer recognizer = SpeechClient.newFlashRecognizer(System.getenv("COS_APP_ID"), credential);
             FlashRecognitionRequest req = FlashRecognitionRequest.initialize();
             req.setEngineType("16k_zh");
             req.setFirstChannelOnly(1);

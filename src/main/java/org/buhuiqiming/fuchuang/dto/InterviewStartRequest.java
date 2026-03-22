@@ -12,7 +12,7 @@ public class InterviewStartRequest {
     private String sessionId;
     private String jobPosition;
     private String resumeContent;
-
+    private String jdSummary;
     private InterviewConfig interviewConfig;
     private FlowControl flowControl;
 

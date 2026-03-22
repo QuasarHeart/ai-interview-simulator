@@ -54,13 +54,27 @@ public class InterviewEntity {
     @Column
     private float totalScore;
 
-    // ToDo 具体设置上可能需要修改
+    // 报告摘要（文本可能较长，使用 TEXT）
+    @Column(columnDefinition = "TEXT")
     private String executiveSummary;
-    private List<String> strengths;
-    private List<String> weaknesses;
-    private String abilityTrend;
-    private String detailedRecommendation;
 
+    // 优势列表（以 JSON 格式存储入库）
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
+    private List<String> strengths;
+
+    // 劣势列表（以 JSON 格式存储入库）
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
+    private List<String> weaknesses;
+
+    // 能力趋势（如果较短可以默认 VARCHAR，如果长建议 TEXT）
+    @Column(columnDefinition = "TEXT")
+    private String abilityTrend;
+
+    // 详细建议（文本很长，强烈建议使用 TEXT）
+    @Column(columnDefinition = "TEXT")
+    private String detailedRecommendation;
     // 早期对话总结
     @Column
     private String historySummary;
