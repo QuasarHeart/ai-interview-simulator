@@ -26,7 +26,7 @@ public class LLMCallServiceImpl implements LLMCallService {
     public LLMCallServiceImpl(UserMapper userMapper) {
         // DeepSeek 设计哲学：兼容 OpenAI 规范，只需换地址
         this.client = OpenAIOkHttpClient.builder()
-                .apiKey(System.getenv("DEEPSEEK_API_KEY"))
+                .apiKey("")
                 .baseUrl("https://api.deepseek.com/v1")
                 .build();
 
