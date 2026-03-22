@@ -2,6 +2,9 @@ package org.buhuiqiming.fuchuang.entity.jpa;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.buhuiqiming.fuchuang.dto.TurnEvaluationResult;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -29,9 +32,10 @@ public class InterviewEntity {
     @Column(nullable = false)
     private String mode;
 
-    // 会话状态: CREATED, RUNNING, FINISHED
+    // 会话状态: CREATED, RUNNING, FINISHED, REPORTING(正在生成报告), REPORTED(已经生成报告)
     @Column(nullable = false)
     private String interviewStatus;
+    // CREATED -> RUNNING -> FINISHED -> REPORTING -> REPORTED
 
     // 简历总结
     @Column
@@ -75,12 +79,11 @@ public class InterviewEntity {
     @Column
     private Duration duration;
 
-    // ======= 该轮次回答的各维度具体评分 ========
-    /**
-     * 具体内容的相关评分维度
-     */
-    @Column
-    TurnEvaluationResult totalEvaluation;
+    // 最终用于展示的评分记录
+    // 评分维度：指定在数据库中以 JSON 格式存储
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
+    private TurnEvaluationResult totalEvaluation;
 
     // ================= 审计四元组 =================
 

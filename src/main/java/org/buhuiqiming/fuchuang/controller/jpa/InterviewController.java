@@ -7,6 +7,8 @@ import org.buhuiqiming.fuchuang.VO.InterviewVO;
 import org.buhuiqiming.fuchuang.dto.CreateInterviewDTO;
 import org.buhuiqiming.fuchuang.dto.Result;
 import org.buhuiqiming.fuchuang.dto.SubmitAnswerTextDTO;
+import org.buhuiqiming.fuchuang.entity.jpa.InterviewEntity;
+import org.buhuiqiming.fuchuang.exception.ServiceException;
 import org.buhuiqiming.fuchuang.service.InterviewService;
 import org.buhuiqiming.fuchuang.util.ASR;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -151,4 +153,38 @@ public class InterviewController {
         List<InterviewTurnsVO> data = interviewService.getInterviewTurns(interviewId);
         return Result.success(data);
     }
+
+    /**
+     * 面试报告回调
+     */
+    @PostMapping("/{interviewId}/report-callback")
+    public void InterviewReportCallback(@PathVariable String interviewId) throws Exception{
+
+    }
+
+    /**
+     * 获取面试报告
+     */
+    @GetMapping("/{interviewId}/report")
+    public Result getInterviewReport(@PathVariable String interviewId) throws Exception{
+        String status = interviewService.getInterviewStatus(interviewId);
+
+        // 2. 根据状态返回不同的结果给前端
+        switch (status) {
+            case "FINISHED":
+            case "REPORTING":
+                // 告诉前端：还没好，请继续轮询
+                // 返回特定的业务状态码，比如 202 (Accepted) 或自定义的 Code
+                return Result.success(202, "报告正在生成中，请稍候...");
+
+            case "REPORTED":
+                // 生成完毕，返回数据并停止轮询。
+                Object reportData = interviewService.getReportData(interviewId);
+                return Result.success(200, "报告生成完毕", reportData);
+
+            default:
+                throw new ServiceException(500, "面试会话状态异常，请联系管理员");
+        }
+    }
+
 }

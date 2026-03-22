@@ -1,34 +1,36 @@
-package org.buhuiqiming.fuchuang.entity.jpa;
+package org.buhuiqiming.fuchuang.dto;
 
 import lombok.Data;
-import reactor.netty.channel.MeterKey;
+import tools.jackson.databind.PropertyNamingStrategies;
+import tools.jackson.databind.annotation.JsonNaming;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * 专门用于映射 InterviewTurnsEntity 中 evaluationResult 字段的 JSON 结构
  */
 @Data
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class TurnEvaluationResult implements Serializable {
 
+    private ProfessionalDetails professional;
+    private CognitionDetails cognition;
+    private ExpressionDetails expression;
     private DimensionScores dimensionScores;
-    private DimensionDetails dimensionDetails;
+    private Double finalScore;
+    private String overallFeedback;
+    private List<String> improvementSuggestions;
 
     @Data
     public static class DimensionScores implements Serializable {
         private Double professional;
-        private Double cognition;
+        private Integer cognition;
         private Double expression;
     }
 
     @Data
-    public static class DimensionDetails implements Serializable {
-        private ProfessionalDetails professional;
-        private CognitionDetails cognition;
-        private ExpressionDetails expression;
-    }
-
-    @Data
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public static class ProfessionalDetails implements Serializable {
         private MetricDetail technicalCorrectness;
         private MetricDetail knowledgeMatch;
@@ -37,6 +39,7 @@ public class TurnEvaluationResult implements Serializable {
     }
 
     @Data
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public static class CognitionDetails implements Serializable {
         private MetricDetail logicStructure;
         private MetricDetail problemSolving;
@@ -44,10 +47,11 @@ public class TurnEvaluationResult implements Serializable {
     }
 
     @Data
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public static class ExpressionDetails implements Serializable {
         private MetricDetail clarity;
-        private MetricDetail confidence_stability;
-        private MetricDetail professional_maturity;
+        private MetricDetail confidenceStability;
+        private MetricDetail professionalMaturity;
     }
 
     @Data

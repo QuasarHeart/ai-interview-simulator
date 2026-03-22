@@ -2,6 +2,9 @@ package org.buhuiqiming.fuchuang.entity.jpa;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.buhuiqiming.fuchuang.dto.TurnEvaluationResult;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -37,7 +40,9 @@ public class InterviewTurnsEntity {
     private String answerVoice;
 
     // 评分维度
-    @Column
+    // 评分维度：指定在数据库中以 JSON 格式存储
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
     private TurnEvaluationResult evaluationResult;
 
     // ================= 审计四元组 =================
