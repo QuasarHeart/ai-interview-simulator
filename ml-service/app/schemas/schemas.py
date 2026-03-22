@@ -23,8 +23,10 @@ class Background(BaseModel):
     jd_summary: str
 
 class RecentHistoryItem(BaseModel):
+    round_id: int
     role: Literal["assistant", "user"]
     content: str
+    flow_control: FlowControl
 
 class HistoryData(BaseModel): 
     history_summary: str
