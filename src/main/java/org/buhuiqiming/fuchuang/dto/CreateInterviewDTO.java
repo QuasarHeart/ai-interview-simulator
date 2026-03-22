@@ -14,6 +14,12 @@ public class CreateInterviewDTO {
     // 输入模式(text, voice)
     private String mode;
 
+    // 职位描述
+    private String jobInfo;
+
+    // 面试官风格
+    private String interviewerStyle;
+
     // 简历文件(pdf/doc/docx) -- 可选
     private MultipartFile resumeFile;
 

@@ -33,12 +33,24 @@ public interface UserMapper {
     @Delete("delete from account where id = #{id}")
     void deleteAccount(Long id);
 
-
     @Update("update user set avatar = #{avatar} where user_id = #{id}")
-    void addAvatar(@Param("id")Long id,@Param("avatar")String avatar);
+    void updateAvatar(@Param("avatar")String avatar,@Param("id") Long id);
 
-    @Select("select avatar from user where  user_id=#{id}")
+    @Select("select avatar from user where user_id = #{id}")
     String getAvatar(Long id);
+
+    @Update("update user set vita_url = #{vita} where user_id = #{id}")
+    void updateVita(@Param("vita")String vita,@Param("id") Long id);
+
+    @Select("select vita_url from user where user_id = #{id}")
+    String getVita(Long id);
+
+    @Update("update user set vita_content = #{vita_content} where user_id = #{id}")
+    void updateVitaContent(@Param("vita_content")String vita_content,@Param("id") Long id);
+
+    @Select("select vita_content from user where user_id = #{id}")
+    String getVitaContent(Long id);
+
 
     void init_user();
     void init_account();

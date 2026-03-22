@@ -65,7 +65,9 @@
         gender TINYINT,
         nick_name VARCHAR(50),
         description VARCHAR(100),
-        avatar VARCHAR(50)
+        avatar_url VARCHAR(100),
+        vita_url VARCHAR(100),
+        vita_content VARCHAR(2000),
         );
     </update>
 
