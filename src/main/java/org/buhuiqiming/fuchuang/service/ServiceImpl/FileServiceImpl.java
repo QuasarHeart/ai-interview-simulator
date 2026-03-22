@@ -58,6 +58,10 @@ public class FileServiceImpl implements FileService {
                     userMapper.updateVita(key,UserContext.get());
             }
             else if(request.getMethod().equals("GET")){
+                if(dir.equals("avatar"))
+                    extension = "png";
+                else if(dir.equals("vita"))
+                    extension = "pdf";
                     key = dir + "/" + UserContext.get() + "." + extension;
             }
 
