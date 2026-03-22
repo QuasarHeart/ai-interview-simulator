@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.buhuiqiming.fuchuang.VO.InterviewTurnsVO;
 import org.buhuiqiming.fuchuang.VO.InterviewVO;
 import org.buhuiqiming.fuchuang.dto.CreateInterviewDTO;
+import org.buhuiqiming.fuchuang.dto.ReportCallbackResquest;
 import org.buhuiqiming.fuchuang.dto.Result;
 import org.buhuiqiming.fuchuang.dto.SubmitAnswerTextDTO;
 import org.buhuiqiming.fuchuang.entity.jpa.InterviewEntity;
@@ -105,7 +106,6 @@ public class InterviewController {
 
         Map<String, Object> data = new HashMap<>();
         data.put("status", "FINISHED");
-        data.put("reportStatus", "REPORTING");
         return Result.success(data);
     }
 
@@ -116,7 +116,7 @@ public class InterviewController {
     public Result getAllInterviews() {
 
         // TODO: 从 Token 中解析出真实的 userId
-        String mockUserId = "user_001";
+        Long mockUserId = 1L;
 
         List<InterviewVO> data = interviewService.getInterviewHistoryList(mockUserId);
 
@@ -136,8 +136,8 @@ public class InterviewController {
      * 面试报告回调
      */
     @PostMapping("/{interviewId}/report-callback")
-    public void InterviewReportCallback(@PathVariable String interviewId) throws Exception{
-
+    public Result InterviewReportCallback(@PathVariable String interviewId, @RequestBody ReportCallbackResquest resquest) throws Exception{
+        return interviewService.handleInterviewReport(interviewId, resquest);
     }
 
     /**
@@ -146,8 +146,11 @@ public class InterviewController {
     @GetMapping("/{interviewId}/report")
     public Result getInterviewReport(@PathVariable String interviewId) throws Exception{
         String status = interviewService.getInterviewStatus(interviewId);
-
-        return null;
+        return switch (status) {
+            case "FINISHED", "REPORTING" -> Result.success(202, "报告正在生成");
+            case "REPORTED" -> Result.success();
+            default -> Result.error(500, "面试会话状态异常，请联系管理员");
+        };
     }
 
 }
