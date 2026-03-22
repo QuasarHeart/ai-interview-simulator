@@ -20,6 +20,12 @@ public class Result {
         result.data = data;
         return result;
     }
+    public static Result success(Integer code, String msg){
+        Result result = new Result();
+        result.code =code;
+        result.msg = msg;
+        return result;
+    }
     public static Result error(Integer code,String msg){
         Result result = new Result();
         result.code =code;
