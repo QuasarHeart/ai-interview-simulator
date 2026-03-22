@@ -1,6 +1,5 @@
 package org.buhuiqiming.fuchuang.websocket;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
@@ -12,17 +11,18 @@ import org.springframework.web.socket.server.standard.ServletServerContainerFact
 @Configuration
 public class WebSocketConfig implements WebSocketConfigurer {
 
-    @Autowired
     private AudioInterviewHandler audioInterviewHandler;
-
-    @Autowired
     private WebSocketAuthInterceptor webSocketAuthInterceptor;
 
+    public WebSocketConfig(AudioInterviewHandler audioInterviewHandler, WebSocketAuthInterceptor webSocketAuthInterceptor) {
+        this.audioInterviewHandler = audioInterviewHandler;
+        this.webSocketAuthInterceptor = webSocketAuthInterceptor;
+    }
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry){
         registry.addHandler(audioInterviewHandler, "/ws/interview/audio")
                 .addInterceptors(webSocketAuthInterceptor)
-                .setAllowedOrigins("*"); // ToDo 测试需要允许所有来源，后续需指定域名
+                .setAllowedOrigins("*");
     }
 
     @Bean
