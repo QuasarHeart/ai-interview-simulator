@@ -96,6 +96,7 @@ public class InterviewService {
         InterviewStartRequest requestBody = InterviewStartRequest.builder()
                 .sessionId(interviewId)
                 .jobPosition(interview.getJobRole())
+                .jdSummary(interview.getJobInfo())
                 .resumeContent(userMapper.getVitaContent(UserContext.get())) // 简历的解析文本
                 .interviewConfig(InterviewStartRequest.InterviewConfig.builder()
                         .mode(interview.getMode())
