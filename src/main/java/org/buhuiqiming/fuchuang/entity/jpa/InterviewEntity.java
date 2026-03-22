@@ -8,7 +8,6 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Entity
 @Data
@@ -52,14 +51,7 @@ public class InterviewEntity {
 
     // 最终综合评分
     @Column
-    private float totalScore;
-
-    // ToDo 具体设置上可能需要修改
-    private String executiveSummary;
-    private List<String> strengths;
-    private List<String> weaknesses;
-    private String abilityTrend;
-    private String detailedRecommendation;
+    private int totalScore;
 
     // 早期对话总结
     @Column

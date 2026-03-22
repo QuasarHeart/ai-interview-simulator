@@ -60,7 +60,7 @@ public class GenerateReportRequest {
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public static class DimensionScores {
         private float professional;
-        private float cognition;
+        private Integer cognition;
         private float expression;
     }
 

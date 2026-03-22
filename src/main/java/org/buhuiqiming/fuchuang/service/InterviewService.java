@@ -22,7 +22,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.JsonNode;
 
-import java.rmi.ServerError;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -300,13 +299,6 @@ public class InterviewService {
                                             emitter.send("[DONE]");
                                             emitter.complete();
 
-                                            if(metaData.containsKey("target_stage") && metaData.get("target_stage").toString().equals("end")){
-                                                Result result = getInterviewReport(interviewId);
-                                                if(result == null || !Integer.valueOf(200).equals(result.getCode())){
-                                                    throw new ServiceException(500, "ml服务启动异常: " + (result != null ? result.getMsg() : "无响应"));
-                                                }
-                                            }
-
                                             // 结束后执行数据库落库操作
                                             saveTurnMetaData(interviewId, queBuffer.toString(), metaData);
                                             break;
@@ -371,7 +363,6 @@ public class InterviewService {
      */
     @Transactional(rollbackFor = Exception.class)
     public void finishInterview(String interviewId){
-        log.info("finishInterview");
         InterviewEntity interview = getInterviewOrElseThrow(interviewId);
 
         if (!"RUNNING".equals(interview.getInterviewStatus())) {
@@ -431,8 +422,7 @@ public class InterviewService {
     }
 
     // 获取历史面试列表
-    public List<InterviewVO> getInterviewHistoryList(Long userId){
-        log.info("getInterviewHistoryList");
+    public List<InterviewVO> getInterviewHistoryList(String userId){
         List<InterviewEntity> interviews = interviewRepository.findAllByUserIdOrderByCreateTimeDesc(userId);
 
         List<InterviewVO> resultList = new ArrayList<>();
@@ -447,7 +437,7 @@ public class InterviewService {
             interviewVO.setDuration(interview.getDuration());
 
             // ToDo 具体的评分维度要改
-            Map<String, Float> scoreMap = new HashMap<>();
+            Map<String, Integer> scoreMap = new HashMap<>();
             interviewVO.setScoresDelta(scoreMap);
             
             resultList.add(interviewVO);
@@ -510,7 +500,8 @@ public class InterviewService {
             if (eval.getDimensionScores() != null) {
                 scores = GenerateReportRequest.DimensionScores.builder()
                         .professional(eval.getDimensionScores().getProfessional())
-                        .cognition(eval.getDimensionScores().getCognition())
+                        // API 要求 cognition 是 Integer，而实体里可能是 Double
+                        .cognition(eval.getDimensionScores().getCognition() != null ? eval.getDimensionScores().getCognition().intValue() : null)
                         .expression(eval.getDimensionScores().getExpression())
                         .build();
             }
@@ -586,7 +577,7 @@ public class InterviewService {
     }
 
     // 获取某次面试的报告
-    public Result getInterviewReport(String interviewId){
+    public void getInterviewReport(String interviewId){
         InterviewEntity interview = getInterviewOrElseThrow(interviewId);
         List<InterviewTurnsEntity> turnsEntities = interviewTurnsRepository.findByInterviewIdOrderByTurnNumberAsc(interviewId);
         String callbackUrl = "/{interviewId}/report";
@@ -597,21 +588,5 @@ public class InterviewService {
                 .body(requestBody)
                 .retrieve()
                 .body(Result.class);
-
-        return result;
-    }
-
-    // 面试会话回调结果处理
-    public Result handleInterviewReport(String interviewId, ReportCallbackResquest resquest){
-        InterviewEntity interview = getInterviewOrElseThrow(interviewId);
-        interview.setTotalScore(resquest.getOverallScore());
-        interview.setExecutiveSummary(resquest.getExecutiveSummary());
-        interview.setStrengths(resquest.getStrengths());
-        interview.setWeaknesses(resquest.getWeaknesses());
-        interview.setAbilityTrend(resquest.getAbilityTrend());
-        interview.setDetailedRecommendation(resquest.getDetailedRecommendation());
-        interviewRepository.save(interview);
-
-        return Result.success();
     }
 }
