@@ -54,6 +54,9 @@ public class InterviewEntity {
     @Column
     private float totalScore;
 
+    @Column
+    private String hiringRecommendation;
+
     // 报告摘要（文本可能较长，使用 TEXT）
     @Column(columnDefinition = "TEXT")
     private String executiveSummary;

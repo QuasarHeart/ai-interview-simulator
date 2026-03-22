@@ -15,7 +15,6 @@ public class InterviewFollowByRequest {
     private InterviewConfig interviewConfig;
     private Background background;
     private HistoryData historyData;
-    private FlowControl flowControl;
 
     @Data
     @Builder
@@ -48,16 +47,20 @@ public class InterviewFollowByRequest {
         @Builder
         @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
         public static class HistoryItem {
-            private String role; // assistant, user
-            private String content;
+            private Integer roundId;
+            private String assistantContent; // assistant, user
+            private String userContent;
+            private FlowControl flowControl;
+
+            @Data
+            @Builder
+            @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+            public static class FlowControl {
+                private String stageTransition; // continue, switch, end
+                private String targetStage;      // intro, resume_deep_dive, etc.
+            }
         }
     }
 
-    @Data
-    @Builder
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    public static class FlowControl {
-        private String stageTransition; // continue, switch, end
-        private String targetStage;      // intro, resume_deep_dive, etc.
-    }
+
 }

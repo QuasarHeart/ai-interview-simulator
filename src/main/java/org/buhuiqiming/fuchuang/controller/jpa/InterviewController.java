@@ -3,7 +3,9 @@ package org.buhuiqiming.fuchuang.controller.jpa;
 import lombok.extern.slf4j.Slf4j;
 import org.buhuiqiming.fuchuang.VO.InterviewTurnsVO;
 import org.buhuiqiming.fuchuang.VO.InterviewVO;
+import org.buhuiqiming.fuchuang.VO.ReportResultVO;
 import org.buhuiqiming.fuchuang.dto.CreateInterviewDTO;
+import org.buhuiqiming.fuchuang.dto.GenerateReportResponse;
 import org.buhuiqiming.fuchuang.dto.Result;
 import org.buhuiqiming.fuchuang.dto.SubmitAnswerTextDTO;
 import org.buhuiqiming.fuchuang.entity.jpa.InterviewEntity;
@@ -136,8 +138,12 @@ public class InterviewController {
      * 面试报告回调
      */
     @PostMapping("/{interviewId}/report-callback")
-    public void InterviewReportCallback(@PathVariable String interviewId) throws Exception{
-
+    public void InterviewReportCallback(@PathVariable String interviewId, @RequestBody GenerateReportResponse response) throws Exception{
+        if(response == null){
+            log.info("返回报告为空");
+            throw new ServiceException(500, "返回报告为空");
+        }
+        interviewService.handleInterviewReportCallback(interviewId, response);
     }
 
     /**
@@ -146,8 +152,16 @@ public class InterviewController {
     @GetMapping("/{interviewId}/report")
     public Result getInterviewReport(@PathVariable String interviewId) throws Exception{
         String status = interviewService.getInterviewStatus(interviewId);
-
-        return null;
+        switch (status){
+            case "FINISHED":
+            case "REPORTING":
+                return Result.success(202, "报告正在生成中");
+            case "REPORTED":
+                ReportResultVO data = interviewService.handleReportDataForFrontend(interviewId);
+                return Result.success(data);
+            default:
+                return Result.error(500, "面试会话异常，请联系管理员");
+        }
     }
 
 }
