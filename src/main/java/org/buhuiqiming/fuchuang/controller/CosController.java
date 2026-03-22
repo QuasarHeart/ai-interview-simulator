@@ -18,7 +18,6 @@ public class CosController {
     @RequestMapping("/analyze")
     public void analyze_result(@RequestBody String xml){
         log.info("cos analyze result callback");
-        log.info("xml:{}", xml);
         llmCallService.analyzeXml(xml);
     }
 }

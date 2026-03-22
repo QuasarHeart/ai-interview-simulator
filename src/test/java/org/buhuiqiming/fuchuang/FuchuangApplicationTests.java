@@ -5,6 +5,7 @@ import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.ChatModel;
 import com.openai.models.chat.completions.*;
 import com.qcloud.cos.http.HttpMethodName;
+import org.buhuiqiming.fuchuang.cos.CosConfig;
 import org.buhuiqiming.fuchuang.cos.URLAK;
 import org.buhuiqiming.fuchuang.service.CodeService;
 import org.buhuiqiming.fuchuang.util.ResumeParserUtils;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -97,5 +99,13 @@ class  sTest{
 
         String result = parseResume(text);
         System.out.println( result);
+    }
+}
+class CosUrl{
+    @Test
+    public void testCosUrl(){
+        URLAK urlAK = new URLAK(new CosConfig());
+        URL url = urlAK.generatePresignedUrl("avatar/12.png", HttpMethodName.PUT, null, null, false, true);
+        System.out.println(url);
     }
 }
