@@ -28,6 +28,14 @@ public class InterviewEntity {
     @Column(nullable = false)
     private String difficulty;
 
+    // 岗位信息
+    @Column(nullable = false)
+    private String jobInfo;
+
+    // 面试官风格
+    @Column(nullable = false)
+    private String interviewerStyle;
+
     // 面试模式 （text / video）
     @Column(nullable = false)
     private String mode;
@@ -37,17 +45,6 @@ public class InterviewEntity {
     private String interviewStatus;
     // CREATED -> RUNNING -> FINISHED -> REPORTING -> REPORTED
 
-    // 简历总结
-    @Column
-    private String resumeSummary;
-
-    // 上传简历Id
-    @Column(unique = true)
-    private String resumeAssetId;
-
-    // 存储简历地址 / 云存储URL
-    @Column(unique = true)
-    private String resumeAssetAddress;
 
     // 目前面试轮次
     @Column
@@ -89,7 +86,7 @@ public class InterviewEntity {
 
     // 1. 创建人 (归属用户 ID) - 关联系统里的 User
     @Column()
-    private String userId;
+    private Long userId;
 
     // 2. 创建时间 (一旦创建不可修改)，可作为面试开始时间
     @Column(nullable = false, updatable = false)
@@ -123,12 +120,14 @@ public class InterviewEntity {
 
     public InterviewEntity() {}
 
-    public InterviewEntity(String interviewId, String jobRole, String difficulty, String mode, String interviewStatus) {
+    public InterviewEntity(String interviewId, String jobRole, String difficulty, String mode, String interviewStatus, String jobInfo, String interviewerStyle) {
         this.interviewId = interviewId;
         this.jobRole = jobRole;
         this.difficulty = difficulty;
         this.mode = mode;
         this.interviewStatus = interviewStatus;
+        this.jobInfo = jobInfo;
+        this.interviewerStyle = interviewerStyle;
         this.turnsNumber = 0;
     }
 

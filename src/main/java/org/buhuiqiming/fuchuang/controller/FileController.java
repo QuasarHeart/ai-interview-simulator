@@ -28,6 +28,11 @@ public class FileController {
         log.info("用户{}请求文件{},method:{}", UserContext.get(), request.getParameter("filename"), request.getMethod());
         return Result.success(fileService.generateCOSURL(request, "file"));
     }
+    @RequestMapping("/vita")
+    public Result vitaRequest( HttpServletRequest request){
+        log.info("用户{}请求简历{},method:{}", UserContext.get(), request.getParameter("filename"), request.getMethod());
+        return Result.success(fileService.generateCOSURL(request, "vita"));
+    }
 
 
 }

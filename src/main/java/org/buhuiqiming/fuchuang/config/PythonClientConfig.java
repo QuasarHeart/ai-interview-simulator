@@ -1,4 +1,4 @@
-package org.buhuiqiming.fuchuang.versionOne;
+package org.buhuiqiming.fuchuang.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
