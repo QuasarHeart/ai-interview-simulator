@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 @Data
-public class StartInterviewQueDTO {
+public class StartInterviewQueResponse {
     @JsonProperty("session_id")
     private String sessionId;
     @JsonProperty("round_id")

@@ -6,6 +6,7 @@ import org.buhuiqiming.fuchuang.VO.InterviewTurnsVO;
 import org.buhuiqiming.fuchuang.dto.*;
 import org.buhuiqiming.fuchuang.entity.jpa.InterviewEntity;
 import org.buhuiqiming.fuchuang.entity.jpa.InterviewTurnsEntity;
+import org.buhuiqiming.fuchuang.dto.TurnEvaluationResult;
 import org.buhuiqiming.fuchuang.exception.ServiceException;
 import org.buhuiqiming.fuchuang.repository.InterviewRepository;
 import org.buhuiqiming.fuchuang.repository.InterviewTurnsRepository;
@@ -59,6 +60,15 @@ public class InterviewService {
         return interview;
     }
 
+    // 获取对应面试会话当前状态
+    public String getInterviewStatus(String interviewId) {
+        InterviewEntity interview = interviewRepository.findByInterviewId(interviewId);
+        if (interview == null) {
+            throw new ServiceException(404, "面试会话不存在");
+        }
+        return interview.getInterviewStatus();
+    }
+
     public String createInterview(CreateInterviewDTO dto, String mockUserId, String resumeAssetId) {
         System.out.println("createInterview");
         String interviewId = UUID.randomUUID().toString().replace("-", "");
@@ -103,9 +113,9 @@ public class InterviewService {
             throw new ServiceException(500, "算法服务启动异常: " + (response != null ? response.getMsg() : "无响应"));
         }
 
-        StartInterviewQueDTO data = objectMapper.convertValue(
+        StartInterviewQueResponse data = objectMapper.convertValue(
                 response.getData(),
-                StartInterviewQueDTO.class
+                StartInterviewQueResponse.class
         );
         if(data == null){
             // 服务器返回异常
@@ -350,8 +360,50 @@ public class InterviewService {
     }
 
     // 获取单轮回答评价
-    public void getTurnsJudgement(String interviewId){
+    public void getTurnsJudgement(InterviewEntity interview, InterviewTurnsEntity interviewTurns){
+        var config = GetTurnsJudgeRequest.InterviewConfig.builder()
+                .mode(interview.getMode())
+                .analyzeEmotion(false)
+                .companyContext("")
+                .interviewerStyle("standard") // ToDo 同理
+                .difficulty(interview.getDifficulty())
+                .build();
+        var analyze = GetTurnsJudgeRequest.ContentToAnalyze.builder()
+                .question(interviewTurns.getQuestion())
+                .userAnswer(interviewTurns.getAnswerText())
+                .jobPosition(interview.getJobRole())
+                .jbSummary("岗位要求") // ToDo
+                .historySummary(interview.getHistorySummary())
+                .resumeContent("简历文本") // ToDo 这里应该是简历的总结吧
+                .build();
+        GetTurnsJudgeRequest getTurnsJudgeRequest = GetTurnsJudgeRequest.builder()
+                .sessionId(interviewTurns.getInterviewId())
+                .roundId(interviewTurns.getTurnNumber())
+                .interviewConfig(config)
+                .contentToAnalyze(analyze)
+                .currentStage(interview.getTargetStage()) // ToDo 这里文档里面表述的应该是一样的，但是具体的参数设置名称可能有点歧义
+                .build();
 
+        Result response = restClient.post()
+                .uri("/analysis")
+                .body(getTurnsJudgeRequest)
+                .retrieve()
+                .body(Result.class);
+        log.info("response={}", response);
+        if (response == null || !Integer.valueOf(200).equals(response.getCode())) {
+            throw new ServiceException(500, "评价服务异常: " + (response != null ? response.getMsg() : "无响应"));
+        }
+
+        GetTurnsJudgeResponse data = objectMapper.convertValue(
+                response.getData(),
+                GetTurnsJudgeResponse.class
+        );
+        if (data == null || data.getAnalysis() == null) {
+            throw new ServiceException(500, "评价服务返回的数据结构异常");
+        }
+
+        TurnEvaluationResult evaluationResult = data.getAnalysis();
+        interviewTurns.setEvaluationResult(evaluationResult);
     }
 
     // 获取历史面试列表
@@ -371,10 +423,6 @@ public class InterviewService {
 
             // ToDo 具体的评分维度要改
             Map<String, Integer> scoreMap = new HashMap<>();
-            scoreMap.put("correctness", interview.getCorrectness());
-            scoreMap.put("profundity", interview.getProfundity());
-            scoreMap.put("rigour", interview.getRigour());
-            scoreMap.put("fit",  interview.getFit());
             interviewVO.setScoresDelta(scoreMap);
             
             resultList.add(interviewVO);
@@ -399,5 +447,134 @@ public class InterviewService {
             voList.add(interviewTurnVO);
         }
         return voList;
+    }
+
+    private GenerateReportRequest buildGenerateReportRequest(InterviewEntity interview,
+                                                             List<InterviewTurnsEntity> turnsEntities,
+                                                             String callbackUrl) {
+        // 1. 构建 InterviewConfig
+        var config = GenerateReportRequest.InterviewConfig.builder()
+                .mode(interview.getMode())
+                .analyzeEmotion(false)        // ToDo: 后续如果有配置可替换
+                .interviewerStyle("standard") // ToDo: 默认风格
+                .companyContext("")           // ToDo: 公司背景
+                .difficulty(interview.getDifficulty())
+                .build();
+
+        // 2. 构建 InterviewContext
+        var context = GenerateReportRequest.InterviewContext.builder()
+                .jobPosition(interview.getJobRole())
+                .jdSummary("岗位要求") // ToDo: 替换为实际的 JD 总结
+                .totalRounds(interview.getTurnsNumber())
+                // 将 Duration 转换为秒数
+                .interviewDurationSeconds(interview.getDuration() != null ? (int) interview.getDuration().getSeconds() : 0)
+                .resumeContent("简历文本") // ToDo: 替换为实际解析的简历
+                .build();
+
+        // 3. 循环构建 RoundResults 列表
+        List<GenerateReportRequest.RoundResult> roundResults = new ArrayList<>();
+        for (InterviewTurnsEntity turn : turnsEntities) {
+            TurnEvaluationResult eval = turn.getEvaluationResult();
+            if (eval == null) {
+                // 如果某轮因为异常没有生成评价，直接跳过或赋默认值
+                continue;
+            }
+
+            // 3.1 映射 DimensionScores (注意类型转换：Double 转 Integer)
+            GenerateReportRequest.DimensionScores scores = null;
+            if (eval.getDimensionScores() != null) {
+                scores = GenerateReportRequest.DimensionScores.builder()
+                        .professional(eval.getDimensionScores().getProfessional())
+                        // API 要求 cognition 是 Integer，而实体里可能是 Double
+                        .cognition(eval.getDimensionScores().getCognition() != null ? eval.getDimensionScores().getCognition().intValue() : null)
+                        .expression(eval.getDimensionScores().getExpression())
+                        .build();
+            }
+
+            // 3.2 映射 DimensionDetails 的三个子维度
+            GenerateReportRequest.DimensionDetails details = GenerateReportRequest.DimensionDetails.builder()
+                    .professional(buildProfessional(eval.getProfessional()))
+                    .cognition(buildCognition(eval.getCognition()))
+                    .expression(buildExpression(eval.getExpression()))
+                    .build();
+
+            // 3.3 组装单轮 RoundResult
+            GenerateReportRequest.RoundResult roundResult = GenerateReportRequest.RoundResult.builder()
+                    .roundId(turn.getTurnNumber())
+                    .currentStage(interview.getTargetStage()) // 也可以从 turn 扩展字段里取
+                    .dimensionScores(scores)
+                    .dimensionDetails(details)
+                    // API 要求 finalScore 是 String
+                    .finalScore(eval.getFinalScore() != null ? String.valueOf(eval.getFinalScore()) : "0")
+                    .overallFeedback(eval.getOverallFeedback())
+                    .improvementSuggestions(eval.getImprovementSuggestions())
+                    .build();
+
+            roundResults.add(roundResult);
+        }
+
+        // 4. 组装最终请求体
+        return GenerateReportRequest.builder()
+                .sessionId(interview.getInterviewId())
+                .callbackUrl(callbackUrl)
+                .interviewContext(context)
+                .roundResults(roundResults)
+                .interviewConfig(config)
+                .build();
+    }
+
+    private GenerateReportRequest.Professional buildProfessional(TurnEvaluationResult.ProfessionalDetails source) {
+        if (source == null) return null;
+        return GenerateReportRequest.Professional.builder()
+                .technicalCorrectness(mapMetric(source.getTechnicalCorrectness()))
+                .knowledgeMatch(mapMetric(source.getKnowledgeMatch()))
+                .jobMatch(mapMetric(source.getJobMatch()))
+                .engineeringPractice(mapMetric(source.getEngineeringPractice()))
+                .build();
+    }
+
+    private GenerateReportRequest.Cognition buildCognition(TurnEvaluationResult.CognitionDetails source) {
+        if (source == null) return null;
+        return GenerateReportRequest.Cognition.builder()
+                .logicStructure(mapMetric(source.getLogicStructure()))
+                .problemSolving(mapMetric(source.getProblemSolving()))
+                .systemThinking(mapMetric(source.getSystemThinking()))
+                .build();
+    }
+
+    private GenerateReportRequest.Expression buildExpression(TurnEvaluationResult.ExpressionDetails source) {
+        if (source == null) return null;
+        return GenerateReportRequest.Expression.builder()
+                .clarity(mapMetric(source.getClarity()))
+                .confidenceStability(mapMetric(source.getConfidenceStability()))
+                .professionalMaturity(mapMetric(source.getProfessionalMaturity()))
+                .build();
+    }
+
+    /**
+     * ToDo 具体的文档确定一下最终面试报告需要的各个分项的具体的数据类型 Double / Integer
+     * 通用的细项分数转换工具：将实体的 MetricDetail 转为 DTO 的 MetricDetail，处理了 Double 到 Integer 的强转
+     */
+    private GenerateReportRequest.MetricDetail mapMetric(TurnEvaluationResult.MetricDetail source) {
+        if (source == null) return null;
+        return GenerateReportRequest.MetricDetail.builder()
+                .reason(source.getReason())
+                .score(source.getScore() != null ? source.getScore().intValue() : 0)
+                .build();
+    }
+
+    // 获取某次面试的报告
+    public void getInterviewReport(String interviewId){
+        InterviewEntity interview = getInterviewOrElseThrow(interviewId);
+        List<InterviewTurnsEntity> turnsEntities = interviewTurnsRepository.findByInterviewIdOrderByTurnNumberAsc(interviewId);
+        String callbackUrl = "/{interviewId}/report";
+
+        GenerateReportRequest requestBody = buildGenerateReportRequest(interview, turnsEntities, callbackUrl);
+        Result result = restClient.post()
+                .uri("/report")
+                .body(requestBody)
+                .retrieve()
+                .body(Result.class);
+
     }
 }
