@@ -75,7 +75,7 @@ public class InterviewService {
         return interview.getInterviewStatus();
     }
 
-    public String createInterview(CreateInterviewDTO dto, String mockUserId, String resumeAssetId) {
+    public String createInterview(CreateInterviewDTO dto) {
         System.out.println("createInterview");
         String interviewId = UUID.randomUUID().toString().replace("-", "");
         InterviewEntity interview = new InterviewEntity(interviewId, dto.getJobRole(), dto.getDifficulty(), dto.getMode(), "CREATED", dto.getJobInfo(), dto.getInterviewerStyle());
@@ -128,11 +128,7 @@ public class InterviewService {
         }
 
         String interviewBeginQue = data.getQuestion();
-        String stageTransition = data.getFlowControl().getStageTransition();
-        String targetStage = data.getFlowControl().getTargetStage();
 
-        interview.setStageTransition(stageTransition);
-        interview.setTargetStage(targetStage);
         interview.setInterviewStatus("RUNNING");
         //第一轮特殊处理
         interview.setHistorySummary("当前为第一轮对话，暂无面试总结");
@@ -195,9 +191,20 @@ public class InterviewService {
         int currentTurn = interview.getTurnsNumber();
         InterviewTurnsEntity interviewTurnsEntity = interviewTurnsRepository.findByInterviewIdAndTurnNumber(interviewId, currentTurn);
         interviewTurnsEntity.setAnswerText(answerText);
-        // ToDo 进行具体的回答的分析，评价   --   这个针对单一轮次评价的还需要吗？
+
+        Long currentUserId = UserContext.get();
+        String resumeContent = userMapper.getVitaContent(currentUserId);
 
         interviewTurnsRepository.save(interviewTurnsEntity);
+
+        executorService.execute(() -> {
+            try{
+                getTurnsJudgement(interview, interviewTurnsEntity, resumeContent);
+                interviewTurnsRepository.save(interviewTurnsEntity);
+            } catch (Exception e){
+                log.error("获取当前轮次评价异常, interviewId: {}, turn: {}", interviewId, currentTurn, e);
+            }
+        });
 
         executorService.execute(() -> {
             try{
@@ -209,8 +216,8 @@ public class InterviewService {
                         .build();
                 var background = InterviewFollowByRequest.Background.builder()
                         .jobPosition(interview.getJobRole())
-                        .resumeSummary(userMapper.getVitaContent(UserContext.get()))
-                        .jdSummary(interview.getJobInfo()) //职位描述
+                        .resumeSummary(resumeContent)
+                        .jdSummary(interview.getJobInfo())
                         .build();
 
                 List<InterviewFollowByRequest.HistoryData.HistoryItem> historyItems = getInterviewHistory(interviewId);
@@ -220,8 +227,8 @@ public class InterviewService {
                         .recentHistory(historyItems)
                         .build();
                 var flow = InterviewFollowByRequest.FlowControl.builder()
-                        .stageTransition("continue")
-                        .targetStage("tech_general")
+                        .stageTransition(interviewTurnsEntity.getStageTransition())
+                        .targetStage(interviewTurnsEntity.getTargetStage())
                         .build();
                 InterviewFollowByRequest requestBody = InterviewFollowByRequest.builder()
                         .sessionId(interviewId)
@@ -332,12 +339,13 @@ public class InterviewService {
         if(metaData.containsKey("history_summary")){
             interview.setHistorySummary(metaData.get("history_summary").toString());
         }
-        if(metaData.containsKey("target_stage") && metaData.containsKey("stage_transition")){
-            interview.setStageTransition(metaData.get("stage_transition").toString());
-            interview.setTargetStage(metaData.get("target_stage").toString());
-        }
 
         InterviewTurnsEntity interviewTurns = new InterviewTurnsEntity(interviewId, turnsNum, queBuffer, "");
+        if(metaData.containsKey("target_stage") && metaData.containsKey("stage_transition")){
+            interviewTurns.setStageTransition(metaData.get("stage_transition").toString());
+            interviewTurns.setTargetStage(metaData.get("target_stage").toString());
+        }
+
         interviewRepository.save(interview);
         interviewTurnsRepository.save(interviewTurns);
     }
@@ -367,28 +375,28 @@ public class InterviewService {
     }
 
     // 获取单轮回答评价
-    public void getTurnsJudgement(InterviewEntity interview, InterviewTurnsEntity interviewTurns){
+    public void getTurnsJudgement(InterviewEntity interview, InterviewTurnsEntity interviewTurns, String context){
         var config = GetTurnsJudgeRequest.InterviewConfig.builder()
                 .mode(interview.getMode())
                 .analyzeEmotion(false)
                 .companyContext("")
-                .interviewerStyle("standard") // ToDo 同理
+                .interviewerStyle(interview.getInterviewerStyle())
                 .difficulty(interview.getDifficulty())
                 .build();
         var analyze = GetTurnsJudgeRequest.ContentToAnalyze.builder()
                 .question(interviewTurns.getQuestion())
                 .userAnswer(interviewTurns.getAnswerText())
                 .jobPosition(interview.getJobRole())
-                .jbSummary("岗位要求") // ToDo
+                .jbSummary(interview.getJobInfo())
                 .historySummary(interview.getHistorySummary())
-                .resumeContent("简历文本") // ToDo 这里应该是简历的总结吧
+                .resumeContent(context)
                 .build();
         GetTurnsJudgeRequest getTurnsJudgeRequest = GetTurnsJudgeRequest.builder()
                 .sessionId(interviewTurns.getInterviewId())
                 .roundId(interviewTurns.getTurnNumber())
                 .interviewConfig(config)
                 .contentToAnalyze(analyze)
-                .currentStage(interview.getTargetStage()) // ToDo 这里文档里面表述的应该是一样的，但是具体的参数设置名称可能有点歧义
+                .currentStage(interviewTurns.getTargetStage())
                 .build();
 
         Result response = restClient.post()
@@ -463,7 +471,7 @@ public class InterviewService {
         var config = GenerateReportRequest.InterviewConfig.builder()
                 .mode(interview.getMode())
                 .analyzeEmotion(false)        // ToDo: 后续如果有配置可替换
-                .interviewerStyle("standard") // ToDo: 默认风格
+                .interviewerStyle(interview.getInterviewerStyle()) // ToDo: 默认风格
                 .companyContext("")           // ToDo: 公司背景
                 .difficulty(interview.getDifficulty())
                 .build();
@@ -471,11 +479,11 @@ public class InterviewService {
         // 2. 构建 InterviewContext
         var context = GenerateReportRequest.InterviewContext.builder()
                 .jobPosition(interview.getJobRole())
-                .jdSummary("岗位要求") // ToDo: 替换为实际的 JD 总结
+                .jdSummary(interview.getJobInfo())
                 .totalRounds(interview.getTurnsNumber())
                 // 将 Duration 转换为秒数
                 .interviewDurationSeconds(interview.getDuration() != null ? (int) interview.getDuration().getSeconds() : 0)
-                .resumeContent("简历文本") // ToDo: 替换为实际解析的简历
+                .resumeContent(userMapper.getVitaContent(UserContext.get()))
                 .build();
 
         // 3. 循环构建 RoundResults 列表
@@ -508,11 +516,10 @@ public class InterviewService {
             // 3.3 组装单轮 RoundResult
             GenerateReportRequest.RoundResult roundResult = GenerateReportRequest.RoundResult.builder()
                     .roundId(turn.getTurnNumber())
-                    .currentStage(interview.getTargetStage()) // 也可以从 turn 扩展字段里取
+                    .currentStage(turn.getTargetStage()) // 也可以从 turn 扩展字段里取
                     .dimensionScores(scores)
                     .dimensionDetails(details)
-                    // API 要求 finalScore 是 String
-                    .finalScore(eval.getFinalScore() != null ? String.valueOf(eval.getFinalScore()) : "0")
+                    .finalScore(eval.getFinalScore())
                     .overallFeedback(eval.getOverallFeedback())
                     .improvementSuggestions(eval.getImprovementSuggestions())
                     .build();
@@ -559,14 +566,13 @@ public class InterviewService {
     }
 
     /**
-     * ToDo 具体的文档确定一下最终面试报告需要的各个分项的具体的数据类型 Double / Integer
      * 通用的细项分数转换工具：将实体的 MetricDetail 转为 DTO 的 MetricDetail，处理了 Double 到 Integer 的强转
      */
     private GenerateReportRequest.MetricDetail mapMetric(TurnEvaluationResult.MetricDetail source) {
         if (source == null) return null;
         return GenerateReportRequest.MetricDetail.builder()
                 .reason(source.getReason())
-                .score(source.getScore() != null ? source.getScore().intValue() : 0)
+                .score(source.getScore())
                 .build();
     }
 
@@ -582,6 +588,5 @@ public class InterviewService {
                 .body(requestBody)
                 .retrieve()
                 .body(Result.class);
-
     }
 }

@@ -48,8 +48,7 @@ public class GenerateReportRequest {
         private String currentStage;
         private DimensionScores dimensionScores;
         private DimensionDetails dimensionDetails;
-        // ToDo 文档中 final_score 的类型是 string，这里严格按照文档映射为 String
-        private String finalScore;
+        private float finalScore;
         private String overallFeedback;
         private List<String> improvementSuggestions;
     }
@@ -60,9 +59,9 @@ public class GenerateReportRequest {
     @AllArgsConstructor
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public static class DimensionScores {
-        private Double professional;
+        private float professional;
         private Integer cognition;
-        private Double expression;
+        private float expression;
     }
 
     @Data

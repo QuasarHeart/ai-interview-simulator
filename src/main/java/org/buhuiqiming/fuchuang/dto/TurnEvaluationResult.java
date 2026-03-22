@@ -18,15 +18,15 @@ public class TurnEvaluationResult implements Serializable {
     private CognitionDetails cognition;
     private ExpressionDetails expression;
     private DimensionScores dimensionScores;
-    private Double finalScore;
+    private float finalScore;
     private String overallFeedback;
     private List<String> improvementSuggestions;
 
     @Data
     public static class DimensionScores implements Serializable {
-        private Double professional;
+        private float professional;
         private Integer cognition;
-        private Double expression;
+        private float expression;
     }
 
     @Data
@@ -56,7 +56,7 @@ public class TurnEvaluationResult implements Serializable {
 
     @Data
     public static class MetricDetail implements Serializable {
-        private Double score;
+        private Integer score;
         private String reason;
     }
 }

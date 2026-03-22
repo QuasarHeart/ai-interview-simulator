@@ -45,7 +45,6 @@ public class InterviewEntity {
     private String interviewStatus;
     // CREATED -> RUNNING -> FINISHED -> REPORTING -> REPORTED
 
-
     // 目前面试轮次
     @Column
     private int turnsNumber;
@@ -57,12 +56,6 @@ public class InterviewEntity {
     // 早期对话总结
     @Column
     private String historySummary;
-
-    // 面试状态记录
-    @Column
-    private String stageTransition; // 阶段转换指令
-    @Column
-    private String targetStage; // 目标阶段
 
     // 具体提升建议
     @Column(columnDefinition = "TEXT")
