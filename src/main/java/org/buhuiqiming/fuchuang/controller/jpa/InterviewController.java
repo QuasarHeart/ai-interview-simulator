@@ -169,22 +169,7 @@ public class InterviewController {
     public Result getInterviewReport(@PathVariable String interviewId) throws Exception{
         String status = interviewService.getInterviewStatus(interviewId);
 
-        // 2. 根据状态返回不同的结果给前端
-        switch (status) {
-            case "FINISHED":
-            case "REPORTING":
-                // 告诉前端：还没好，请继续轮询
-                // 返回特定的业务状态码，比如 202 (Accepted) 或自定义的 Code
-                return Result.success(202, "报告正在生成中，请稍候...");
-
-            case "REPORTED":
-                // 生成完毕，返回数据并停止轮询。
-                Object reportData = interviewService.getReportData(interviewId);
-                return Result.success(200, "报告生成完毕", reportData);
-
-            default:
-                throw new ServiceException(500, "面试会话状态异常，请联系管理员");
-        }
+        return null;
     }
 
 }
