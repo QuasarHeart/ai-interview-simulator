@@ -275,6 +275,7 @@ public class InterviewService {
         return emitter;
     }
 
+    @Transactional
     // 异步读取结束后将完整的数据保存
     private void saveTurnMetaData(String interviewId, String queBuffer, Map<String, Object> metaData){
         InterviewEntity interview = getInterviewOrElseThrow(interviewId);

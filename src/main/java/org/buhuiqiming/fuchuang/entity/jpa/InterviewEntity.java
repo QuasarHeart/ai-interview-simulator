@@ -41,9 +41,6 @@ public class InterviewEntity {
     @Column(nullable = false)
     private String interviewStatus;
 
-    // 简历总结
-    @Column
-    private String resumeSummary;
 
     // 目前面试轮次
     @Column
@@ -74,28 +71,6 @@ public class InterviewEntity {
     // 面试持续时间
     @Column
     private Duration duration;
-
-    // ======= 该轮次回答的各维度具体评分 ========
-    /**
-     * 具体内容的相关评分维度
-     */
-    // 技术正确性
-    @Column
-    private int correctness;
-
-    // 知识深度
-    @Column
-    private int profundity;
-
-    // 逻辑严谨性
-    @Column
-    private int rigour;
-
-    // 岗位匹配度
-    @Column
-    private int fit;
-
-    // ================= 审计四元组 =================
 
     // 1. 创建人 (归属用户 ID) - 关联系统里的 User
     @Column()
