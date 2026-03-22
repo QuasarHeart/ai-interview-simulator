@@ -240,7 +240,7 @@ public class InterviewService {
                         .build();
 
                 restClient.post()
-                        .uri("http://%s:%s/followup/stream",System.getenv("ML_SERVICE_HOST"),System.getenv("ML_SERVICE_PORT"))
+                        .uri("/followup/stream")
                         .accept(MediaType.TEXT_EVENT_STREAM)
                         .body(requestBody)
                         .exchange((request, response) ->{
