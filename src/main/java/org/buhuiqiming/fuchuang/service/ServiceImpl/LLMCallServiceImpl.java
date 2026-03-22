@@ -78,6 +78,7 @@ public class LLMCallServiceImpl implements LLMCallService {
         log.info("用户id:{},粗略处理，text:{}",UserContext.get(), text);
         //redis缓存状态，防止重复请求
         if(redisTemplate.hasKey("userVita:"+UserContext.get()+":status")){
+            log.info("用户id:{},已存在请求，请勿重复请求",UserContext.get());
             return;
         }
 
@@ -89,7 +90,7 @@ public class LLMCallServiceImpl implements LLMCallService {
         userMapper.updateVitaContent(result, UserContext.get());
         log.info("用户id:{},保存简历文本到数据库",UserContext.get());
         //保存状态,设置一分钟后删除
-        redisTemplate.opsForValue().set("userVita:"+UserContext.get()+":status", "1", 60);
+        redisTemplate.opsForValue().set("userVita:"+UserContext.get()+":status", "1", 60, java.util.concurrent.TimeUnit.SECONDS);
         UserContext.remove();
     }
 
