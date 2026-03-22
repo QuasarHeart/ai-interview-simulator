@@ -67,7 +67,7 @@
         description VARCHAR(100),
         avatar_url VARCHAR(100),
         vita_url VARCHAR(100),
-        vita_content VARCHAR(2000),
+        vita_content VARCHAR(2000)
         );
     </update>
 

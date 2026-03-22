@@ -13,8 +13,8 @@ public class InterviewVO {
     private String difficulty;
     private String mode;
     private Duration duration;
-    private Integer score; // 对应实体类里的 totalScore
+    private float score; // 对应实体类里的 totalScore
     // 具体层面的得分
-    private Map<String, Integer> scoresDelta;
+    private Map<String, Float> scoresDelta;
     private List<InterviewTurnsVO> turns;
 }
