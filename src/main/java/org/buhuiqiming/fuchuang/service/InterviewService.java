@@ -3,6 +3,7 @@ package org.buhuiqiming.fuchuang.service;
 import lombok.extern.slf4j.Slf4j;
 import org.buhuiqiming.fuchuang.VO.InterviewVO;
 import org.buhuiqiming.fuchuang.VO.InterviewTurnsVO;
+import org.buhuiqiming.fuchuang.VO.ReportResultVO;
 import org.buhuiqiming.fuchuang.dto.*;
 import org.buhuiqiming.fuchuang.entity.jpa.InterviewEntity;
 import org.buhuiqiming.fuchuang.entity.jpa.InterviewTurnsEntity;
@@ -144,12 +145,13 @@ public class InterviewService {
     }
 
     // 获取面试历史会话
-    public List<InterviewFollowByRequest.HistoryData.HistoryItem> getInterviewHistory(String interviewId){
+    public List<InterviewFollowByRequest.HistoryData.HistoryItem> getInterviewHistory(String interviewId) {
         List<InterviewFollowByRequest.HistoryData.HistoryItem> list = new ArrayList<>();
 
         InterviewEntity interview = getInterviewOrElseThrow(interviewId);
         int turnsNumber = interview.getTurnsNumber();
         int count = historyTurnsCount;
+
         while (count > 0 && turnsNumber > 0) {
             InterviewTurnsEntity interviewTurnsEntity = interviewTurnsRepository.findByInterviewIdAndTurnNumber(interviewId, turnsNumber);
             if (interviewTurnsEntity == null) {
@@ -161,20 +163,23 @@ public class InterviewService {
             String answerText = interviewTurnsEntity.getAnswerText() != null ? interviewTurnsEntity.getAnswerText() : "";
             String questionText = interviewTurnsEntity.getQuestion() != null ? interviewTurnsEntity.getQuestion() : "";
 
-            InterviewFollowByRequest.HistoryData.HistoryItem itemAns = InterviewFollowByRequest.HistoryData.HistoryItem.builder()
-                    .role("user")
-                    .content(answerText)
+            // 1. 构建这一轮历史对话的 FlowControl
+            InterviewFollowByRequest.HistoryData.HistoryItem.FlowControl historyFlowControl =
+                    InterviewFollowByRequest.HistoryData.HistoryItem.FlowControl.builder()
+                            .stageTransition(interviewTurnsEntity.getStageTransition())
+                            .targetStage(interviewTurnsEntity.getTargetStage())
+                            .build();
+
+            // 2. 将一轮的 Q(assistant) 和 A(user) 合并到一个 HistoryItem 中
+            InterviewFollowByRequest.HistoryData.HistoryItem item = InterviewFollowByRequest.HistoryData.HistoryItem.builder()
+                    .roundId(turnsNumber)
+                    .assistantContent(questionText)
+                    .userContent(answerText)
+                    .flowControl(historyFlowControl)
                     .build();
 
-            InterviewFollowByRequest.HistoryData.HistoryItem itemQue = InterviewFollowByRequest.HistoryData.HistoryItem.builder()
-                    .role("assistant")
-                    .content(questionText)
-                    .build();
-
-            // 重点：使用头插法 (index: 0)，先插入回答，再插入问题。
-            // 这样能保证倒序遍历出来的历史在最终 List 中是老对话在前、新对话在后，且 Q 在 A 之前。
-            list.add(0, itemAns);
-            list.add(0, itemQue);
+            // 3. 重点：使用头插法 (index: 0)，保证最终 List 中老对话在前，新对话在后。
+            list.add(0, item);
 
             turnsNumber--;
             count--;
@@ -211,6 +216,7 @@ public class InterviewService {
             try{
                 var config = InterviewFollowByRequest.InterviewConfig.builder()
                         .mode(interview.getMode())
+                        .companyContext("")
                         .interviewerStyle(interview.getInterviewerStyle())
                         .difficulty(interview.getDifficulty())
                         .analyzeEmotion(false)
@@ -227,17 +233,12 @@ public class InterviewService {
                         .historySummary(interview.getHistorySummary())
                         .recentHistory(historyItems)
                         .build();
-                var flow = InterviewFollowByRequest.FlowControl.builder()
-                        .stageTransition(interviewTurnsEntity.getStageTransition())
-                        .targetStage(interviewTurnsEntity.getTargetStage())
-                        .build();
                 InterviewFollowByRequest requestBody = InterviewFollowByRequest.builder()
                         .sessionId(interviewId)
                         .roundId(interview.getTurnsNumber())
                         .interviewConfig(config)
                         .background(background)
                         .historyData(history)
-                        .flowControl(flow)
                         .build();
 
                 restClient.post()
@@ -299,6 +300,10 @@ public class InterviewService {
                                             // 告诉前端结束了
                                             emitter.send("[DONE]");
                                             emitter.complete();
+
+                                            if(metaData.containsKey("target_stage") && metaData.get("target_stage").toString().equals("end")){
+                                                getInterviewReport(interviewId);
+                                            }
 
                                             // 结束后执行数据库落库操作
                                             saveTurnMetaData(interviewId, queBuffer.toString(), metaData);
@@ -436,10 +441,6 @@ public class InterviewService {
             interviewVO.setMode(interview.getMode());
             interviewVO.setScore(interview.getTotalScore());
             interviewVO.setDuration(interview.getDuration());
-
-            // ToDo 具体的评分维度要改
-            Map<String, Integer> scoreMap = new HashMap<>();
-            interviewVO.setScoresDelta(scoreMap);
             
             resultList.add(interviewVO);
         }
@@ -501,8 +502,7 @@ public class InterviewService {
             if (eval.getDimensionScores() != null) {
                 scores = GenerateReportRequest.DimensionScores.builder()
                         .professional(eval.getDimensionScores().getProfessional())
-                        // API 要求 cognition 是 Integer，而实体里可能是 Double
-                        .cognition(eval.getDimensionScores().getCognition() != null ? eval.getDimensionScores().getCognition().intValue() : null)
+                        .cognition(eval.getDimensionScores().getCognition())
                         .expression(eval.getDimensionScores().getExpression())
                         .build();
             }
@@ -580,6 +580,8 @@ public class InterviewService {
     // 获取某次面试的报告
     public void getInterviewReport(String interviewId){
         InterviewEntity interview = getInterviewOrElseThrow(interviewId);
+        interview.setInterviewStatus("REPORTING");
+        interviewRepository.save(interview);
         List<InterviewTurnsEntity> turnsEntities = interviewTurnsRepository.findByInterviewIdOrderByTurnNumberAsc(interviewId);
         String callbackUrl = "/{interviewId}/report";
 
@@ -589,5 +591,224 @@ public class InterviewService {
                 .body(requestBody)
                 .retrieve()
                 .body(Result.class);
+    }
+
+    // 处理生成报告的回调结果
+    public void handleInterviewReportCallback(String interviewId, GenerateReportResponse response){
+        InterviewEntity interview = getInterviewOrElseThrow(interviewId);
+        interview.setInterviewStatus("REPORTED");
+        interview.setTotalScore(response.getOverallScore());
+        interview.setHiringRecommendation(response.getHiringRecommendation());
+        interview.setStrengths(response.getStrengths());
+        interview.setWeaknesses(response.getWeaknesses());
+        interview.setExecutiveSummary(response.getExecutiveSummary());
+        interview.setDetailedRecommendation(response.getDetailedRecommendation());
+
+        // 具体各个评分维度的分数的确定（取InterviewTurnsEntity对应项的平均值）
+        List<InterviewTurnsEntity> turnsEntities = interviewTurnsRepository.findByInterviewIdOrderByTurnNumberAsc(interviewId);
+        if (turnsEntities != null && !turnsEntities.isEmpty()) {
+            TurnEvaluationResult averageEvaluation = calculateAverageEvaluation(turnsEntities);
+            interview.setTotalEvaluation(averageEvaluation);
+        }
+        interviewRepository.save(interview);
+    }
+
+    /**
+     * 计算所有轮次评价的平均值
+     */
+    private TurnEvaluationResult calculateAverageEvaluation(List<InterviewTurnsEntity> turns) {
+        TurnEvaluationResult totalEval = new TurnEvaluationResult();
+
+        int turnCount = 0;
+        float finalScoreSum = 0;
+
+        int dimCount = 0;
+        float dimProfSum = 0, dimCogSum = 0, dimExpSum = 0;
+
+        // 使用数组累加具体细项分数: index 0 为 sum(总分), index 1 为 count(有效次数)
+        int[] techCorr = new int[2];
+        int[] knowMatch = new int[2];
+        int[] jobMatch = new int[2];
+        int[] engPrac = new int[2];
+
+        int[] logicStruct = new int[2];
+        int[] probSolv = new int[2];
+        int[] sysThink = new int[2];
+
+        int[] clarity = new int[2];
+        int[] confStab = new int[2];
+        int[] profMat = new int[2];
+
+        for (InterviewTurnsEntity turn : turns) {
+            TurnEvaluationResult eval = turn.getEvaluationResult();
+            if (eval == null) continue;
+
+            turnCount++;
+            finalScoreSum += eval.getFinalScore();
+
+            // 1. 累加 DimensionScores
+            if (eval.getDimensionScores() != null) {
+                dimCount++;
+                dimProfSum += eval.getDimensionScores().getProfessional();
+                dimCogSum += eval.getDimensionScores().getCognition();
+                dimExpSum += eval.getDimensionScores().getExpression();
+            }
+
+            // 2. 累加 ProfessionalDetails
+            if (eval.getProfessional() != null) {
+                accumulateMetricScore(techCorr, eval.getProfessional().getTechnicalCorrectness());
+                accumulateMetricScore(knowMatch, eval.getProfessional().getKnowledgeMatch());
+                accumulateMetricScore(jobMatch, eval.getProfessional().getJobMatch());
+                accumulateMetricScore(engPrac, eval.getProfessional().getEngineeringPractice());
+            }
+
+            // 3. 累加 CognitionDetails
+            if (eval.getCognition() != null) {
+                accumulateMetricScore(logicStruct, eval.getCognition().getLogicStructure());
+                accumulateMetricScore(probSolv, eval.getCognition().getProblemSolving());
+                accumulateMetricScore(sysThink, eval.getCognition().getSystemThinking());
+            }
+
+            // 4. 累加 ExpressionDetails
+            if (eval.getExpression() != null) {
+                accumulateMetricScore(clarity, eval.getExpression().getClarity());
+                accumulateMetricScore(confStab, eval.getExpression().getConfidenceStability());
+                accumulateMetricScore(profMat, eval.getExpression().getProfessionalMaturity());
+            }
+        }
+
+        // ================= 赋值平均分 =================
+        if (turnCount > 0) {
+            totalEval.setFinalScore(finalScoreSum / turnCount);
+        }
+
+        if (dimCount > 0) {
+            TurnEvaluationResult.DimensionScores dimScores = new TurnEvaluationResult.DimensionScores();
+            dimScores.setProfessional(dimProfSum / dimCount);
+            dimScores.setCognition(dimCogSum / dimCount);
+            dimScores.setExpression(dimExpSum / dimCount);
+            totalEval.setDimensionScores(dimScores);
+        }
+
+        TurnEvaluationResult.ProfessionalDetails profDetails = new TurnEvaluationResult.ProfessionalDetails();
+        profDetails.setTechnicalCorrectness(buildAverageMetricDetail(techCorr));
+        profDetails.setKnowledgeMatch(buildAverageMetricDetail(knowMatch));
+        profDetails.setJobMatch(buildAverageMetricDetail(jobMatch));
+        profDetails.setEngineeringPractice(buildAverageMetricDetail(engPrac));
+        totalEval.setProfessional(profDetails);
+
+        TurnEvaluationResult.CognitionDetails cogDetails = new TurnEvaluationResult.CognitionDetails();
+        cogDetails.setLogicStructure(buildAverageMetricDetail(logicStruct));
+        cogDetails.setProblemSolving(buildAverageMetricDetail(probSolv));
+        cogDetails.setSystemThinking(buildAverageMetricDetail(sysThink));
+        totalEval.setCognition(cogDetails);
+
+        TurnEvaluationResult.ExpressionDetails expDetails = new TurnEvaluationResult.ExpressionDetails();
+        expDetails.setClarity(buildAverageMetricDetail(clarity));
+        expDetails.setConfidenceStability(buildAverageMetricDetail(confStab));
+        expDetails.setProfessionalMaturity(buildAverageMetricDetail(profMat));
+        totalEval.setExpression(expDetails);
+
+        return totalEval;
+    }
+
+    /**
+     * 辅助方法：累加单项的得分
+     */
+    private void accumulateMetricScore(int[] stats, TurnEvaluationResult.MetricDetail detail) {
+        if (detail != null && detail.getScore() != null) {
+            stats[0] += detail.getScore(); // sum
+            stats[1] += 1;                 // count
+        }
+    }
+
+    /**
+     * 辅助方法：构造平均分的 MetricDetail，只设置 score 不设置 reason
+     */
+    private TurnEvaluationResult.MetricDetail buildAverageMetricDetail(int[] stats) {
+        if (stats[1] == 0) {
+            return null; // 如果没有任何一轮有该项打分，返回 null
+        }
+        TurnEvaluationResult.MetricDetail avgDetail = new TurnEvaluationResult.MetricDetail();
+        // 取四舍五入的平均值（根据 MetricDetail 中 score 为 Integer 的要求）
+        avgDetail.setScore(Math.round((float) stats[0] / stats[1]));
+        // 不设置 reason，让其保持默认的 null 即可
+        return avgDetail;
+    }
+
+    public ReportResultVO handleReportDataForFrontend(String interviewId) {
+        // 1. 获取面试实体
+        InterviewEntity interview = getInterviewOrElseThrow(interviewId);
+
+        // 2. 初始化 VO 的基础字段
+        ReportResultVO.ReportResultVOBuilder voBuilder = ReportResultVO.builder()
+                .hiringRecommendation(interview.getHiringRecommendation())
+                .overallScore(interview.getTotalScore())
+                .executiveSummary(interview.getExecutiveSummary())
+                .strengths(interview.getStrengths())
+                .weaknesses(interview.getWeaknesses())
+                .abilityTrend(interview.getAbilityTrend())
+                .detailedRecommendation(interview.getDetailedRecommendation());
+
+        // 3. 映射详细的评分维度 (totalEvaluation)
+        TurnEvaluationResult totalEval = interview.getTotalEvaluation();
+        if (totalEval != null) {
+
+            // 3.1 映射大维度的得分 (DimensionScores)
+            if (totalEval.getDimensionScores() != null) {
+                voBuilder.dimensionScores(ReportResultVO.DimensionScores.builder()
+                        .professional(totalEval.getDimensionScores().getProfessional())
+                        .cognition(totalEval.getDimensionScores().getCognition())
+                        .expression(totalEval.getDimensionScores().getExpression())
+                        .build());
+            }
+
+            // 3.2 映射细分维度的得分 (DimensionDetails)
+            ReportResultVO.DimensionDetails.DimensionDetailsBuilder detailsBuilder = ReportResultVO.DimensionDetails.builder();
+
+            // --- 专业能力 (Professional) ---
+            if (totalEval.getProfessional() != null) {
+                detailsBuilder.professional(ReportResultVO.Professional.builder()
+                        .technicalCorrectness(extractScoreForFrontend(totalEval.getProfessional().getTechnicalCorrectness()))
+                        .knowledgeMatch(extractScoreForFrontend(totalEval.getProfessional().getKnowledgeMatch()))
+                        .jobMatch(extractScoreForFrontend(totalEval.getProfessional().getJobMatch()))
+                        .engineeringPractice(extractScoreForFrontend(totalEval.getProfessional().getEngineeringPractice()))
+                        .build());
+            }
+
+            // --- 认知能力 (Cognition) ---
+            if (totalEval.getCognition() != null) {
+                detailsBuilder.cognition(ReportResultVO.Cognition.builder()
+                        .logicStructure(extractScoreForFrontend(totalEval.getCognition().getLogicStructure()))
+                        .problemSolving(extractScoreForFrontend(totalEval.getCognition().getProblemSolving()))
+                        .systemThinking(extractScoreForFrontend(totalEval.getCognition().getSystemThinking()))
+                        .build());
+            }
+
+            // --- 表达能力 (Expression) ---
+            if (totalEval.getExpression() != null) {
+                detailsBuilder.expression(ReportResultVO.Expression.builder()
+                        .clarity(extractScoreForFrontend(totalEval.getExpression().getClarity()))
+                        .confidenceStability(extractScoreForFrontend(totalEval.getExpression().getConfidenceStability()))
+                        .professionalMaturity(extractScoreForFrontend(totalEval.getExpression().getProfessionalMaturity()))
+                        .build());
+            }
+
+            // 将组装好的 details 放入 voBuilder
+            voBuilder.dimensionDetails(detailsBuilder.build());
+        }
+
+        // 4. 构建并返回给前端
+        return voBuilder.build();
+    }
+
+    /**
+     * 辅助方法：安全地从 MetricDetail 中提取分数 (转为 int)
+     */
+    private int extractScoreForFrontend(TurnEvaluationResult.MetricDetail metric) {
+        if (metric != null && metric.getScore() != null) {
+            return metric.getScore(); // 返回 Integer，自动拆箱为 int
+        }
+        return 0; // 如果没有评分，默认给 0 分
     }
 }
