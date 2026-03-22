@@ -9,6 +9,7 @@ import org.buhuiqiming.fuchuang.mapper.UserMapper;
 import org.buhuiqiming.fuchuang.service.LLMCallService;
 import org.buhuiqiming.fuchuang.util.ResumeParserUtils;
 import org.buhuiqiming.fuchuang.util.UserContext;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -19,11 +20,11 @@ import java.util.List;
 public class LLMCallServiceImpl implements LLMCallService {
 
     private  final UserMapper userMapper;
-
+    private final RedisTemplate<String, String> redisTemplate;
 
     private final OpenAIClient client;
 
-    public LLMCallServiceImpl(UserMapper userMapper) {
+    public LLMCallServiceImpl(UserMapper userMapper,RedisTemplate redisTemplate) {
         // DeepSeek 设计哲学：兼容 OpenAI 规范，只需换地址
         this.client = OpenAIOkHttpClient.builder()
                 .apiKey(System.getenv("DEEPSEEK_API_KEY"))
@@ -31,6 +32,7 @@ public class LLMCallServiceImpl implements LLMCallService {
                 .build();
 
         this.userMapper = userMapper;
+        this.redisTemplate = redisTemplate;
     }
     private static final String SYSTEM_PROMPT =
             "你是一个专业的简历解析助手。你的任务是从 OCR 提取的杂乱文本中抽取出结构化的简历信息。" +
@@ -74,6 +76,11 @@ public class LLMCallServiceImpl implements LLMCallService {
         //粗略处理xml，
         String text = ResumeParserUtils.extractTextFromXml( xml);
         log.info("用户id:{},粗略处理，text:{}",UserContext.get(), text);
+        //redis缓存状态，防止重复请求
+        if(redisTemplate.hasKey("userVita:"+UserContext.get()+":status")){
+            return;
+        }
+
         log.info("开始调用大模型");
         //设置请求，请求大模型
 
@@ -81,6 +88,8 @@ public class LLMCallServiceImpl implements LLMCallService {
         log.info("用户id:{},大模型返回结果:{}",UserContext.get(), result);
         userMapper.updateVitaContent(result, UserContext.get());
         log.info("用户id:{},保存简历文本到数据库",UserContext.get());
+        //保存状态,设置一分钟后删除
+        redisTemplate.opsForValue().set("userVita:"+UserContext.get()+":status", "1", 60);
         UserContext.remove();
     }
 
