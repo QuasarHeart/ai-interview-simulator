@@ -58,6 +58,11 @@ public class InterviewTurnsEntity {
     @Column
     private String updateBy;
 
+    @Column
+    private String stageTransition;
+
+    @Column
+    private String targetStage;
     /**
      * 在数据第一次插入数据库之前 (INSERT)，JPA 会自动调用这个方法
      */
