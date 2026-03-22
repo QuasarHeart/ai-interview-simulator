@@ -428,7 +428,7 @@ public class InterviewService {
     }
 
     // 获取历史面试列表
-    public List<InterviewVO> getInterviewHistoryList(String userId){
+    public List<InterviewVO> getInterviewHistoryList(Long userId){
         List<InterviewEntity> interviews = interviewRepository.findAllByUserIdOrderByCreateTimeDesc(userId);
 
         List<InterviewVO> resultList = new ArrayList<>();

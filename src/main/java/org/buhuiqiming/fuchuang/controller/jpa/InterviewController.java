@@ -12,6 +12,7 @@ import org.buhuiqiming.fuchuang.entity.jpa.InterviewEntity;
 import org.buhuiqiming.fuchuang.exception.ServiceException;
 import org.buhuiqiming.fuchuang.service.InterviewService;
 import org.buhuiqiming.fuchuang.util.ASR;
+import org.buhuiqiming.fuchuang.util.UserContext;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -48,7 +49,6 @@ public class InterviewController {
         // 面试会话特征码 interviewId 的确定
         // 创建初步的数据库interview实体类记录
         String interviewId = interviewService.createInterview(dto);
-
         String firstQue = interviewService.startInterview(interviewId);
 
         // 具体返回结果构造
@@ -117,10 +117,8 @@ public class InterviewController {
     @GetMapping("/all")
     public Result getAllInterviews() {
 
-        // TODO: 从 Token 中解析出真实的 userId
-        String mockUserId = "user_001";
-
-        List<InterviewVO> data = interviewService.getInterviewHistoryList(mockUserId);
+        Long currentUserId = UserContext.get();
+        List<InterviewVO> data = interviewService.getInterviewHistoryList(currentUserId);
 
         return Result.success(data);
     }
