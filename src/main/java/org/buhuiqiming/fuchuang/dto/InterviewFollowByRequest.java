@@ -32,7 +32,7 @@ public class InterviewFollowByRequest {
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public static class Background {
         private String jobPosition;
-        private String resumeSummary;
+        private String resumeContent;
         private String jdSummary;
     }
 
