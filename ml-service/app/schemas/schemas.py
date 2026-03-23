@@ -24,8 +24,8 @@ class Background(BaseModel):
 
 class RecentHistoryItem(BaseModel):
     round_id: int
-    role: Literal["assistant", "user"]
-    content: str
+    assistant_content: str
+    user_content: str
     flow_control: FlowControl
 
 class HistoryData(BaseModel): 
@@ -109,7 +109,6 @@ class FollowupRequest(BaseModel):
     interview_config: InterviewConfig
     background: Background
     history_data: HistoryData
-    flow_control: FlowControl
 
 class AnalysisRequest(BaseModel):
     """对应 /api/v1/interview/analysis"""

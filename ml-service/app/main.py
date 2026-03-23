@@ -91,7 +91,7 @@ async def start_interview_stream(request: StartRequest):
             async for evt in _yield_text_in_chunks(question, "question", chunk_size=12):
                 yield evt
 
-            # 非展示字段末尾一次性给前端
+            # 非展示字段末尾一次性给后端
             yield f"data: {json.dumps({'type': 'meta', 'session_id': request.session_id, 'round_id': 1, 'flow_control': flow_control}, ensure_ascii=False)}\n\n"
             yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
 
@@ -247,7 +247,13 @@ async def generate_report(request: ReportRequest, background_tasks: BackgroundTa
             "message": "后台正在聚合各轮次评分并生成综合评估报告，完成后将推送到 callback_url。",
         },
     }
+# ==========================================
+# 健康检查接口
+# ==========================================
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

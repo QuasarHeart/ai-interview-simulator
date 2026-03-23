@@ -48,7 +48,7 @@ settings = Settings()
 class LLMEngine:
     def __init__(self):
         #这里的在运行之前需要设置环境变量加上apikey或者硬编码apikey
-        self.api_key = os.getenv("DASHSCOPE_API_KEY", "apikey")
+        self.api_key = os.getenv("DASHSCOPE_API_KEY", "sk-a94c9f13ac90414ebf32016edf803e54")
         self.base_url = os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
         self.model = os.getenv("JUDGE_MODEL", "qwen-plus")
         self.temperature = float(os.getenv("SCORING_TEMPERATURE", "0.2"))
@@ -148,14 +148,16 @@ class LLMEngine:
         followup 场景专用：返回原始 token 流
         """
         kwargs = {
-            "current_stage": req.flow_control.target_stage,
+            "round_id": req.round_id,
+            "job_position": req.background.job_position,
+            "mode": req.interview_config.mode,
             "jd_summary": req.background.jd_summary,
             "resume_content": req.background.resume_content,
             "interviewer_style": req.interview_config.interviewer_style,
             "company_context": req.interview_config.company_context,
             "difficulty": req.interview_config.difficulty,
             "history_summary": req.history_data.history_summary,
-            "recent_history": "\n".join([f"[{item.role}]: {item.content}" for item in req.history_data.recent_history])
+            "recent_history": "\n".join([f"[{item.round_id}]: {item.assistant_content} {item.user_content} {item.flow_control.stage_transition} {item.flow_control.target_stage}" for item in req.history_data.recent_history])
         }
         async for t in self.stream_llm_raw_text(self.prompts["followup"], kwargs):
             yield t
@@ -166,20 +168,28 @@ class LLMEngine:
             "resume_content": req.resume_content,
             "interviewer_style": req.interview_config.interviewer_style,
             "company_context": req.interview_config.company_context,
-            "difficulty": req.interview_config.difficulty
+            "difficulty": req.interview_config.difficulty,
+            "jd_summary": req.jd_summary,
         }
         return await self._invoke_llm(self.prompts["start"], kwargs)
 
     async def generate_following_question(self, req: FollowupRequest) -> dict:
+    # generate_following_question kwargs 补 mode，并统一 recent_history 格式
         kwargs = {
-            "current_stage": req.flow_control.target_stage,
+            "round_id": req.round_id,
+            "job_position": req.background.job_position,
+            "mode": req.interview_config.mode,  # 补上
             "jd_summary": req.background.jd_summary,
             "resume_content": req.background.resume_content,
             "interviewer_style": req.interview_config.interviewer_style,
-            "company_context": req.interview_config.company_context,  # 补
+            "company_context": req.interview_config.company_context,
             "difficulty": req.interview_config.difficulty,
             "history_summary": req.history_data.history_summary,
-            "recent_history": "\n".join([f"[{item.role}]: {item.content}" for item in req.history_data.recent_history])
+            "recent_history": "\n".join([
+                f"[{item.round_id}]: {item.assistant_content} | {item.user_content} | "
+                f"{item.flow_control.stage_transition} -> {item.flow_control.target_stage}"
+                for item in req.history_data.recent_history
+            ])
         }
         return await self._invoke_llm(self.prompts["followup"], kwargs)
 
