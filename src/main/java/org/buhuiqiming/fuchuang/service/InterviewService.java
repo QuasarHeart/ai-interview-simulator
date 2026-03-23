@@ -102,6 +102,7 @@ public class InterviewService {
                         .mode(interview.getMode())
                         .analyzeEmotion(false)
                         .interviewerStyle(interview.getInterviewerStyle())
+                        .companyContext("字节")// ToDo: 公司背景
                         .difficulty(interview.getDifficulty())
                         .build())
                 .flowControl(InterviewStartRequest.FlowControl.builder()
@@ -216,7 +217,7 @@ public class InterviewService {
             try{
                 var config = InterviewFollowByRequest.InterviewConfig.builder()
                         .mode(interview.getMode())
-                        .companyContext("")
+                        .companyContext("字节")// ToDo: 公司背景
                         .interviewerStyle(interview.getInterviewerStyle())
                         .difficulty(interview.getDifficulty())
                         .analyzeEmotion(false)
@@ -385,7 +386,7 @@ public class InterviewService {
         var config = GetTurnsJudgeRequest.InterviewConfig.builder()
                 .mode(interview.getMode())
                 .analyzeEmotion(false)
-                .companyContext("")
+                .companyContext("字节")// ToDo: 公司背景
                 .interviewerStyle(interview.getInterviewerStyle())
                 .difficulty(interview.getDifficulty())
                 .build();
@@ -474,7 +475,7 @@ public class InterviewService {
                 .mode(interview.getMode())
                 .analyzeEmotion(false)        // ToDo: 后续如果有配置可替换
                 .interviewerStyle(interview.getInterviewerStyle()) // ToDo: 默认风格
-                .companyContext("")           // ToDo: 公司背景
+                .companyContext("字节")           // ToDo: 公司背景
                 .difficulty(interview.getDifficulty())
                 .build();
 
