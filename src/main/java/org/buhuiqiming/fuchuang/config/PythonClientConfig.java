@@ -18,7 +18,7 @@ public class PythonClientConfig {
 
         return RestClient.builder()
                 .requestFactory(factory)
-                .baseUrl("https://ml.feixingxr.com") // ToDo 具体Python发布的域名或者本地运行
+                .baseUrl("https://ml.feixingxr.com/api/v1/interview")
                 .defaultHeader("Content-Type", "application/json")
                 .build();
     }
