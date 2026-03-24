@@ -1,16 +1,20 @@
 """
 通用接入大模型的框架，适配面试过程中的不同流程
 """
+import asyncio
+import logging
 import os
 import yaml
 import json_repair
 from dataclasses import dataclass, field
-from typing import Dict
+from typing import Any, Dict
 from jinja2 import Environment, StrictUndefined
 from openai import AsyncOpenAI
 from app.schemas.schemas import StartRequest, FollowupRequest, AnalysisRequest, ReportRequest
 from typing import AsyncGenerator
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class Settings:
@@ -47,11 +51,18 @@ settings = Settings()
 
 class LLMEngine:
     def __init__(self):
-        #这里的在运行之前需要设置环境变量加上apikey或者硬编码apikey
-        self.api_key = os.getenv("DASHSCOPE_API_KEY", "sk-a94c9f13ac90414ebf32016edf803e54")
+        self.api_key = os.getenv("DASHSCOPE_API_KEY", "sk-a94c9f13ac90414ebf32016edf803e54").strip()
+        if not self.api_key:
+            raise ValueError("DASHSCOPE_API_KEY 未配置，服务无法启动")
+
         self.base_url = os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
         self.model = os.getenv("JUDGE_MODEL", "qwen-plus")
         self.temperature = float(os.getenv("SCORING_TEMPERATURE", "0.2"))
+        self.request_timeout = float(os.getenv("LLM_REQUEST_TIMEOUT_SECONDS", "60"))
+        self.max_retries = int(os.getenv("LLM_MAX_RETRIES", "2"))
+        self.retry_backoff_seconds = float(os.getenv("LLM_RETRY_BACKOFF_SECONDS", "1.0"))
+
+        self.template_env = Environment(undefined=StrictUndefined)
 
         self.client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
         # ===== 可移植路径：基于当前文件位置，不再硬编码 =====
@@ -66,6 +77,9 @@ class LLMEngine:
             "report": self._load_yaml(app_dir / "prompts" / "report" / "report_v4.yaml"),
         }
 
+    async def aclose(self) -> None:
+        await self.client.close()
+
     def _load_yaml(self, path):
         path = Path(path)
         if not path.exists():
@@ -73,27 +87,58 @@ class LLMEngine:
         with path.open("r", encoding="utf-8") as f:
             return yaml.safe_load(f)
 
-    async def _invoke_llm(self, prompt_config: dict, kwargs_dict: dict) -> dict:
-        env = Environment(undefined=StrictUndefined)
-
-        system_role = env.from_string(prompt_config["system_role"]).render(**kwargs_dict)
-        rules = env.from_string(prompt_config["rules"]).render(**kwargs_dict)
-        format_requirements = env.from_string(prompt_config["format_requirements"]).render(**kwargs_dict)
-        user_prompt = env.from_string(prompt_config["input_context"]).render(**kwargs_dict)
+    def _build_prompts(self, prompt_config: dict, kwargs_dict: dict) -> tuple[str, str]:
+        system_role = self.template_env.from_string(prompt_config["system_role"]).render(**kwargs_dict)
+        rules = self.template_env.from_string(prompt_config["rules"]).render(**kwargs_dict)
+        format_requirements = self.template_env.from_string(prompt_config["format_requirements"]).render(**kwargs_dict)
+        user_prompt = self.template_env.from_string(prompt_config["input_context"]).render(**kwargs_dict)
 
         system_prompt = f"{system_role}\n\n{rules}\n\n{format_requirements}"
+        return system_prompt, user_prompt
 
-        response = await self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=self.temperature
-        )
+    @staticmethod
+    def _loads_json_dict(raw_text: str) -> dict:
+        parsed: Any = json_repair.loads(raw_text)
+        if isinstance(parsed, tuple):
+            parsed = parsed[0]
+        if not isinstance(parsed, dict):
+            raise ValueError(f"LLM 返回结果不是 JSON 对象，实际类型: {type(parsed).__name__}")
+        return parsed
 
-        raw_text = response.choices[0].message.content or "{}"
-        return json_repair.loads(raw_text)
+    async def _invoke_llm(self, prompt_config: dict, kwargs_dict: dict) -> dict:
+        system_prompt, user_prompt = self._build_prompts(prompt_config, kwargs_dict)
+
+        last_error: Exception | None = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    temperature=self.temperature,
+                    timeout=self.request_timeout,
+                )
+
+                raw_text = response.choices[0].message.content or "{}"
+                return self._loads_json_dict(raw_text)
+
+            except Exception as exc:
+                last_error = exc
+                if attempt >= self.max_retries:
+                    break
+                sleep_seconds = self.retry_backoff_seconds * (2 ** attempt)
+                logger.warning(
+                    "LLM 调用失败，准备重试: attempt=%s/%s sleep=%.2fs error=%s",
+                    attempt + 1,
+                    self.max_retries + 1,
+                    sleep_seconds,
+                    str(exc),
+                )
+                await asyncio.sleep(sleep_seconds)
+
+        raise RuntimeError(f"LLM 调用失败，已重试 {self.max_retries} 次: {last_error}")
     
     # 2) 把这两个方法加到 class LLMEngine 里（放在 _invoke_llm 后面最合适）
 
@@ -101,13 +146,7 @@ class LLMEngine:
         """
         流式返回模型原始文本 token（通常是 JSON 字符串片段）
         """
-        env = Environment(undefined=StrictUndefined)
-
-        system_role = env.from_string(prompt_config["system_role"]).render(**kwargs_dict)
-        rules = env.from_string(prompt_config["rules"]).render(**kwargs_dict)
-        format_requirements = env.from_string(prompt_config["format_requirements"]).render(**kwargs_dict)
-        user_prompt = env.from_string(prompt_config["input_context"]).render(**kwargs_dict)
-        system_prompt = f"{system_role}\n\n{rules}\n\n{format_requirements}"
+        system_prompt, user_prompt = self._build_prompts(prompt_config, kwargs_dict)
 
         stream = await self.client.chat.completions.create(
             model=self.model,
@@ -116,6 +155,7 @@ class LLMEngine:
                 {"role": "user", "content": user_prompt}
             ],
             temperature=self.temperature,
+            timeout=self.request_timeout,
             stream=True
         )
 
@@ -270,7 +310,7 @@ class LLMEngine:
             ai_result["final_score"] = round(total_5_point * 20, 1)
 
         except Exception as e:
-            print(f"[警告] 计算得分失败，依赖 AI 原生输出。错误: {e}")
+            logger.warning("计算得分失败，回退到兜底输出: %s", e)
             # 兜底，保证响应字段完整
             ai_result.setdefault("dimension_details", {
                 "professional": {},
