@@ -86,9 +86,7 @@ public class LLMCallServiceImpl implements LLMCallService {
         //设置请求，请求大模型
 
         String result = parseResume(text);
-        log.info("用户id:{},大模型返回结果:{}",UserContext.get(), result);
         userMapper.updateVitaContent(result, UserContext.get());
-        log.info("用户id:{},保存简历文本到数据库",UserContext.get());
         //保存状态,设置一分钟后删除
         redisTemplate.opsForValue().set("userVita:"+UserContext.get()+":status", "1", 60, java.util.concurrent.TimeUnit.SECONDS);
         UserContext.remove();
