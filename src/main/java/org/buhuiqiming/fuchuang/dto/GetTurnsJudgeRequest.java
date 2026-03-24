@@ -33,7 +33,7 @@ public class GetTurnsJudgeRequest {
         private String question;
         private String userAnswer;
         private String jobPosition;
-        private String jbSummary;
+        private String jdSummary;
         private String historySummary;
         private String resumeContent;
     }
