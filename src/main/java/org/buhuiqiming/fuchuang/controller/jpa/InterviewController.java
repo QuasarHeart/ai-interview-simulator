@@ -107,7 +107,6 @@ public class InterviewController {
 
         Map<String, Object> data = new HashMap<>();
         data.put("status", "FINISHED");
-        data.put("reportStatus", "REPORTING");
         return Result.success(data);
     }
 
