@@ -112,10 +112,10 @@ public class InterviewService {
                 .build();
         log.info("requestBody = {}", requestBody);
         Result response = restClient.post()
-                .uri("/start")
-                .body(requestBody)
-                .retrieve()
-                .body(Result.class);
+                    .uri("/start")
+                    .body(requestBody)
+                    .retrieve()
+                    .body(Result.class);
         log.info("response={}", response);
         if (response == null || !Integer.valueOf(200).equals(response.getCode())) {
             throw new ServiceException(500, "ml服务启动异常: " + (response != null ? response.getMsg() : "无响应"));
