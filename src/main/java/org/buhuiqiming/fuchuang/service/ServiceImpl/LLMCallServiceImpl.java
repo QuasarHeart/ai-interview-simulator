@@ -75,7 +75,7 @@ public class LLMCallServiceImpl implements LLMCallService {
     public void analyzeXml(String xml){
         //粗略处理xml，
         String text = ResumeParserUtils.extractTextFromXml( xml);
-        log.info("用户id:{},粗略处理，text:{}",UserContext.get(), text);
+        log.info("用户id:{},粗略处理",UserContext.get());
         //redis缓存状态，防止重复请求
         if(redisTemplate.hasKey("userVita:"+UserContext.get()+":status")){
             log.info("用户id:{},已存在请求，请勿重复请求",UserContext.get());
