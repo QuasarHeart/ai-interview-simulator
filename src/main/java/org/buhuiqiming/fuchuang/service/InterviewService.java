@@ -14,6 +14,7 @@ import org.buhuiqiming.fuchuang.repository.InterviewRepository;
 import org.buhuiqiming.fuchuang.repository.InterviewTurnsRepository;
 import org.buhuiqiming.fuchuang.util.UserContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +42,7 @@ public class InterviewService {
     private final RestClient restClient;
     private final ExecutorService executorService = Executors.newVirtualThreadPerTaskExecutor();
     private final ObjectMapper objectMapper;
+    private final StringRedisTemplate stringRedisTemplate;
 
     private final int historyTurnsCount = 4;
 
@@ -49,17 +51,19 @@ public class InterviewService {
                             InterviewTurnsRepository interviewTurnsRepository,
                             RestClient pythonClient,
                             ObjectMapper objectMapper,
-                            UserMapper userMapper
+                            UserMapper userMapper,
+                            StringRedisTemplate stringRedisTemplate
     ) {
         this.interviewRepository = interviewRepository;
         this.interviewTurnsRepository = interviewTurnsRepository;
         this.restClient = pythonClient;
         this.objectMapper = objectMapper;
         this.userMapper = userMapper;
+        this.stringRedisTemplate = stringRedisTemplate;
     }
 
     // 面试会话不存在错误码判断
-    private InterviewEntity getInterviewOrElseThrow(String interviewId) {
+    public InterviewEntity getInterviewOrElseThrow(String interviewId) {
         InterviewEntity interview = interviewRepository.findByInterviewId(interviewId);
         if (interview == null) {
             throw new ServiceException(404, "面试会话不存在");
@@ -112,10 +116,10 @@ public class InterviewService {
                 .build();
         log.info("requestBody = {}", requestBody);
         Result response = restClient.post()
-                    .uri("/start")
-                    .body(requestBody)
-                    .retrieve()
-                    .body(Result.class);
+                .uri("/start")
+                .body(requestBody)
+                .retrieve()
+                .body(Result.class);
         log.info("response={}", response);
         if (response == null || !Integer.valueOf(200).equals(response.getCode())) {
             throw new ServiceException(500, "ml服务启动异常: " + (response != null ? response.getMsg() : "无响应"));
@@ -207,14 +211,16 @@ public class InterviewService {
 
         interviewTurnsRepository.save(interviewTurnsEntity);
 
-        executorService.execute(() -> {
-            try{
-                getTurnsJudgement(interview, interviewTurnsEntity, resumeContent);
-                interviewTurnsRepository.save(interviewTurnsEntity);
-            } catch (Exception e){
-                log.error("获取当前轮次评价异常, interviewId: {}, turn: {}", interviewId, currentTurn, e);
-            }
-        });
+        Map<String, String> messageBody = new HashMap<>();
+        messageBody.put("interviewId", interviewId);
+        messageBody.put("turnNumber", String.valueOf(currentTurn));
+
+        var record = org.springframework.data.redis.connection.stream.StreamRecords.newRecord()
+                .ofStrings(messageBody)
+                .withStreamKey("interview:eval:stream");
+        stringRedisTemplate.opsForStream().add(record);
+        stringRedisTemplate.opsForStream().trim("interview:eval:stream", 1200); // 最大容纳任务数为1200
+        log.info("已将评价任务投递到 MQ, interviewId: {}, turn: {}", interviewId, currentTurn);
 
         executorService.execute(() -> {
             try{
@@ -306,7 +312,12 @@ public class InterviewService {
                                             emitter.complete();
 
                                             if(metaData.containsKey("target_stage") && metaData.get("target_stage").toString().equals("end")){
-                                                getInterviewReport(interviewId);
+                                                InterviewEntity endInterview = getInterviewOrElseThrow(interviewId);
+                                                endInterview.setInterviewStatus("WAITING_REPORT");
+                                                interviewRepository.save(endInterview);
+
+                                                // 尝试触发报告生成
+                                                tryTriggerReportGeneration(interviewId);
                                             }
 
                                             // 结束后执行数据库落库操作
@@ -574,7 +585,7 @@ public class InterviewService {
     // 获取某次面试的报告
     public void getInterviewReport(String interviewId){
         InterviewEntity interview = getInterviewOrElseThrow(interviewId);
-        interview.setInterviewStatus("REPORTING");
+        interview.setInterviewStatus("FINISHED");
         interviewRepository.save(interview);
         List<InterviewTurnsEntity> turnsEntities = interviewTurnsRepository.findByInterviewIdOrderByTurnNumberAsc(interviewId);
         String callbackUrl = "https://nas.feixingxr.com/api/v1/interviews/{interviewId}/report-callback";
@@ -859,5 +870,31 @@ public class InterviewService {
             return metric.getScore(); // 返回 Integer，自动拆箱为 int
         }
         return 0; // 如果没有评分，默认给 0 分
+    }
+
+    // 尝试触发报告生成
+    @Transactional
+    public void tryTriggerReportGeneration(String interviewId){
+        // 检查面试会话状态
+        String status = getInterviewStatus(interviewId);
+        if(!"WAITING_REPORT".equals(status)){
+            return;
+        }
+
+        // 检查所有面试轮次是否都已经完成评分
+        int unEvaluationTurns = interviewTurnsRepository.countUnEvaluatedTurns(interviewId);
+        if(unEvaluationTurns > 0){
+            log.info("还有 {} 轮面试轮次正在评分中", unEvaluationTurns);
+            return;
+        }
+
+        // 更新面试会话状态
+        int updateStatus = interviewRepository.updateStatusIfWaiting(interviewId, "REPORTING", "WAITING_REPORT");
+        if(updateStatus > 0){
+            log.info("已经完成所有面试轮次评价，开始生成报告");
+            executorService.execute(() -> getInterviewReport(interviewId));
+        } else{
+            log.info("已经完成所有面试轮次评价，但是更新面试会话状态失败, {}", interviewId);
+        }
     }
 }
