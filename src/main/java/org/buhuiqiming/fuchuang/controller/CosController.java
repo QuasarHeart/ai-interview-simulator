@@ -1,6 +1,7 @@
 package org.buhuiqiming.fuchuang.controller;
 
 import lombok.extern.slf4j.Slf4j;
+import org.buhuiqiming.fuchuang.dto.Result;
 import org.buhuiqiming.fuchuang.service.LLMCallService;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,8 +17,9 @@ public class CosController {
         this.llmCallService = llmCallService;
     }
     @RequestMapping("/analyze")
-    public void analyze_result(@RequestBody String xml){
+    public Result analyze_result(@RequestBody String xml){
         log.info("cos analyze result callback");
         llmCallService.analyzeXml(xml);
+        return Result.success();
     }
 }
