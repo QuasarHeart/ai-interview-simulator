@@ -2,6 +2,8 @@ package org.buhuiqiming.fuchuang.repository;
 
 import org.buhuiqiming.fuchuang.entity.jpa.InterviewTurnsEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -13,4 +15,8 @@ public interface InterviewTurnsRepository extends JpaRepository<InterviewTurnsEn
 
     // 按照interviewId中的轮次顺序先后排序后返回interviewTurnsEntity
     List<InterviewTurnsEntity> findByInterviewIdOrderByTurnNumberAsc(String interviewId);
+
+    // 统计某个面试中有多少还未评价的轮次（以evaluationResult是否为空为准）
+    @Query("SELECT COUNT(t) FROM InterviewTurnsEntity t WHERE t.interviewId = :interviewId AND t.evaluationResult IS NULL")
+    int countUnEvaluatedTurns(@Param("interviewId") String interviewId);
 }

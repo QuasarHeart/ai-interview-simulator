@@ -49,7 +49,7 @@ public class InterviewTurnsEntity {
 
     // 1. 创建人 (归属用户 ID) - 关联系统里的 User
     @Column
-    private String userId;
+    private Long userId;
 
     // 2. 创建时间 (一旦创建不可修改)
     @Column(nullable = false, updatable = false)
