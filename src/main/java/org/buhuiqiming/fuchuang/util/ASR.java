@@ -88,7 +88,7 @@ public class ASR {
         }
         try{
             byte[] audioBytes = audio.getBytes();
-            com.tencent.asr.model.Credential credential = com.tencent.asr.model.Credential.builder().secretId(System.getenv("TENCENTCLOUD_SECRET_ID")).secretKey(System.getenv("TENCENTCLOUD_SECRET_KEY")).build();
+            com.tencent.asr.model.Credential credential = com.tencent.asr.model.Credential.builder().secretId(System.getenv("COS_SECRET_ID")).secretKey(System.getenv("COS_SECRET_KEY")).build();
             FlashRecognizer recognizer = SpeechClient.newFlashRecognizer(System.getenv("COS_APP_ID"), credential);
             FlashRecognitionRequest req = FlashRecognitionRequest.initialize();
             req.setEngineType("16k_zh");
