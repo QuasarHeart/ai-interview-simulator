@@ -202,6 +202,8 @@ public class InterviewService {
 
         Long currentUserId = UserContext.get();
         String resumeContent = userMapper.getVitaContent(currentUserId);
+        interviewTurnsEntity.setStageTransition("continue");
+        interviewTurnsEntity.setTargetStage("intro");
 
         interviewTurnsRepository.save(interviewTurnsEntity);
 
@@ -387,7 +389,7 @@ public class InterviewService {
                 .question(interviewTurns.getQuestion())
                 .userAnswer(interviewTurns.getAnswerText())
                 .jobPosition(interview.getJobRole())
-                .jbSummary(interview.getJobInfo())
+                .jdSummary(interview.getJobInfo())
                 .historySummary(interview.getHistorySummary())
                 .resumeContent(context)
                 .build();
