@@ -1,4 +1,4 @@
-package org.buhuiqiming.fuchuang.service.impl;
+package org.buhuiqiming.fuchuang.service.ServiceImpl;
 
 import lombok.extern.slf4j.Slf4j;
 import org.buhuiqiming.fuchuang.VO.InterviewTurnsVO;
