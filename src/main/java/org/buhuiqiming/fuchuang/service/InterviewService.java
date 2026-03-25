@@ -110,13 +110,13 @@ public class InterviewService {
                         .targetStage("intro")
                         .build())
                 .build();
-        log.info("requestBody = {}", requestBody);
+        log.info("当前流程，创建会话，阶段：请求ml");
         Result response = restClient.post()
                     .uri("/start")
                     .body(requestBody)
                     .retrieve()
                     .body(Result.class);
-        log.info("response={}", response);
+        log.info("当前流程，创建会话，阶段：收到ml回复");
         if (response == null || !Integer.valueOf(200).equals(response.getCode())) {
             throw new ServiceException(500, "ml服务启动异常: " + (response != null ? response.getMsg() : "无响应"));
         }
@@ -185,7 +185,6 @@ public class InterviewService {
             turnsNumber--;
             count--;
         }
-        log.info("list={}", list);
         return list;
     }
 
@@ -244,7 +243,7 @@ public class InterviewService {
                         .background(background)
                         .historyData(history)
                         .build();
-                log.info("requestBody: {}", requestBody);
+
                 restClient.post()
                         .uri("/followup/stream")
                         .accept(MediaType.TEXT_EVENT_STREAM)
@@ -415,7 +414,6 @@ public class InterviewService {
                 response.getData(),
                 GetTurnsJudgeResponse.class
         );
-        log.info("getTurnsJudgeResponse:{}", data);
         if (data == null || data.getAnalysis() == null) {
             throw new ServiceException(500, "评价服务返回的数据结构异常");
         }
@@ -580,13 +578,14 @@ public class InterviewService {
         String callbackUrl = "https://nas.feixingxr.com/api/v1/interviews/{interviewId}/report-callback";
 
         GenerateReportRequest requestBody = buildGenerateReportRequest(interview, turnsEntities, callbackUrl);
-        log.info("requestBody: {}", requestBody);
+
         Result result = restClient.post()
                 .uri("/report")
                 .body(requestBody)
                 .retrieve()
                 .body(Result.class);
-        log.info("result: {}", result);
+
+
     }
 
     // 处理生成报告的回调结果
