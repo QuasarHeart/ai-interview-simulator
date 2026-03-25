@@ -103,7 +103,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-websocket</artifactId>
         </dependency>
-        <!--这里腾讯云的服务我这里是绕过IDEA判断下载的，直接加载如果报错的话可能要用maven指令下载-->
         <dependency>
             <groupId>com.tencentcloudapi</groupId>
             <artifactId>tencentcloud-sdk-java-asr</artifactId>
