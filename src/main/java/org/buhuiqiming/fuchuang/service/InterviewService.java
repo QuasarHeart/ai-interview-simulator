@@ -14,6 +14,7 @@ import org.buhuiqiming.fuchuang.repository.InterviewRepository;
 import org.buhuiqiming.fuchuang.repository.InterviewTurnsRepository;
 import org.buhuiqiming.fuchuang.util.UserContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -61,6 +62,10 @@ public class InterviewService {
         this.userMapper = userMapper;
         this.stringRedisTemplate = stringRedisTemplate;
     }
+
+    @Autowired
+    @Lazy
+    private InterviewService self;
 
     // 面试会话不存在错误码判断
     public InterviewEntity getInterviewOrElseThrow(String interviewId) {
@@ -317,7 +322,7 @@ public class InterviewService {
                                                 interviewRepository.save(endInterview);
 
                                                 // 尝试触发报告生成
-                                                tryTriggerReportGeneration(interviewId);
+                                                self.tryTriggerReportGeneration(interviewId);
                                             }
 
                                             // 结束后执行数据库落库操作
