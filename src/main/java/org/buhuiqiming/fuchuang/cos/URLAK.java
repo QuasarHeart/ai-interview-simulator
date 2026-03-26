@@ -86,7 +86,6 @@ public class URLAK {
 //        HttpMethodName method = HttpMethodName.GET;
 
         URL url = cosClient.generatePresignedUrl(cosConfig.getBucket(), key, expirationDate, method, headers, params);
-        log.info("URl:"+url.toString());
 
 // 确认本进程不再使用 cosClient 实例之后，关闭即可
         cosClient.shutdown();
