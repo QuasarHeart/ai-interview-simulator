@@ -16,6 +16,8 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+FOLLOWUP_STAGE_SEQUENCE = ["intro", "resume_deep_dive", "tech_general", "tech_scenario", "reverse_qa", "end"]
+
 @dataclass
 class Settings:
     professional_weight: float = 0.5
@@ -51,13 +53,13 @@ settings = Settings()
 
 class LLMEngine:
     def __init__(self):
-        self.api_key = os.getenv("DASHSCOPE_API_KEY", "sk-a94c9f13ac90414ebf32016edf803e54").strip()
+        self.api_key = os.getenv("DASHSCOPE_API_KEY", "").strip()
         if not self.api_key:
             raise ValueError("DASHSCOPE_API_KEY 未配置，服务无法启动")
 
         self.base_url = os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
-        self.model = os.getenv("JUDGE_MODEL", "qwen-plus")
-        self.temperature = float(os.getenv("SCORING_TEMPERATURE", "0.2"))
+        self.model = os.getenv("JUDGE_MODEL", "qwen-turbo")
+        self.temperature = float(os.getenv("SCORING_TEMPERATURE", "1.0"))
         self.request_timeout = float(os.getenv("LLM_REQUEST_TIMEOUT_SECONDS", "60"))
         self.max_retries = int(os.getenv("LLM_MAX_RETRIES", "2"))
         self.retry_backoff_seconds = float(os.getenv("LLM_RETRY_BACKOFF_SECONDS", "1.0"))
@@ -86,6 +88,19 @@ class LLMEngine:
             raise FileNotFoundError(f"Prompt file not found: {path}")
         with path.open("r", encoding="utf-8") as f:
             return yaml.safe_load(f)
+
+    @staticmethod
+    def _derive_followup_stage_context(req: FollowupRequest) -> tuple[str, str]:
+        current_stage = "intro"
+        if req.history_data.recent_history:
+            last_item = req.history_data.recent_history[-1]
+            stage = last_item.flow_control.target_stage
+            if stage in FOLLOWUP_STAGE_SEQUENCE:
+                current_stage = stage
+
+        idx = FOLLOWUP_STAGE_SEQUENCE.index(current_stage)
+        next_stage = FOLLOWUP_STAGE_SEQUENCE[min(idx + 1, len(FOLLOWUP_STAGE_SEQUENCE) - 1)]
+        return current_stage, next_stage
 
     def _build_prompts(self, prompt_config: dict, kwargs_dict: dict) -> tuple[str, str]:
         system_role = self.template_env.from_string(prompt_config["system_role"]).render(**kwargs_dict)
@@ -187,6 +202,7 @@ class LLMEngine:
         """
         followup 场景专用：返回原始 token 流
         """
+        current_stage, next_stage = self._derive_followup_stage_context(req)
         kwargs = {
             "round_id": req.round_id,
             "job_position": req.background.job_position,
@@ -197,6 +213,8 @@ class LLMEngine:
             "company_context": req.interview_config.company_context,
             "difficulty": req.interview_config.difficulty,
             "history_summary": req.history_data.history_summary,
+            "current_stage": current_stage,
+            "next_stage": next_stage,
             "recent_history": "\n".join([f"[{item.round_id}]: {item.assistant_content} {item.user_content} {item.flow_control.stage_transition} {item.flow_control.target_stage}" for item in req.history_data.recent_history])
         }
         async for t in self.stream_llm_raw_text(self.prompts["followup"], kwargs):
@@ -215,6 +233,7 @@ class LLMEngine:
 
     async def generate_following_question(self, req: FollowupRequest) -> dict:
     # generate_following_question kwargs 补 mode，并统一 recent_history 格式
+        current_stage, next_stage = self._derive_followup_stage_context(req)
         kwargs = {
             "round_id": req.round_id,
             "job_position": req.background.job_position,
@@ -225,6 +244,8 @@ class LLMEngine:
             "company_context": req.interview_config.company_context,
             "difficulty": req.interview_config.difficulty,
             "history_summary": req.history_data.history_summary,
+            "current_stage": current_stage,
+            "next_stage": next_stage,
             "recent_history": "\n".join([
                 f"[{item.round_id}]: {item.assistant_content} | {item.user_content} | "
                 f"{item.flow_control.stage_transition} -> {item.flow_control.target_stage}"
