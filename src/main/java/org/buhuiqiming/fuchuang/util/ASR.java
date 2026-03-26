@@ -6,8 +6,6 @@ import com.tencent.asr.model.FlashRecognitionRequest;
 import com.tencent.asr.model.FlashRecognitionResponse;
 import com.tencent.asr.service.FlashRecognizer;
 import com.tencentcloudapi.asr.v20190614.AsrClient;
-import com.tencentcloudapi.asr.v20190614.models.CreateRecTaskRequest;
-import com.tencentcloudapi.asr.v20190614.models.CreateRecTaskResponse;
 import com.tencentcloudapi.asr.v20190614.models.SentenceRecognitionRequest;
 import com.tencentcloudapi.asr.v20190614.models.SentenceRecognitionResponse;
 import com.tencentcloudapi.common.Credential;
