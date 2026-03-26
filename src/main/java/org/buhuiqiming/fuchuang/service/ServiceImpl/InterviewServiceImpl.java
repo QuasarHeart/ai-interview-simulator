@@ -148,10 +148,16 @@ public class InterviewServiceImpl implements InterviewService {
         interview.setHistorySummary("当前为第一轮对话，暂无面试总结");
         int turnsNumber = interview.getTurnsNumber() + 1;
         interview.setTurnsNumber(turnsNumber);
+
+
         interviewRepository.save(interview);
 
         InterviewTurnsEntity interviewTurnsEntity = new InterviewTurnsEntity(interviewId, turnsNumber, interviewBeginQue, "");
+        interviewTurnsEntity.setStageTransition("continue");
+        interviewTurnsEntity.setTargetStage("intro");
         interviewTurnsRepository.save(interviewTurnsEntity);
+
+
 
         return interviewBeginQue;
     }
@@ -206,8 +212,7 @@ public class InterviewServiceImpl implements InterviewService {
 
         Long currentUserId = UserContext.get();
         String resumeContent = userMapper.getVitaContent(currentUserId);
-        interviewTurnsEntity.setStageTransition("continue");
-        interviewTurnsEntity.setTargetStage("intro");
+
 
         interviewTurnsRepository.save(interviewTurnsEntity);
 
