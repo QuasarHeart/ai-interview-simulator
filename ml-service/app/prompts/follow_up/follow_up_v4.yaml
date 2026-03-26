@@ -11,22 +11,22 @@ rules: |
      question, updated_history_summary, flow_control, immediate_feedback。
   3. 风格符合 {{interviewer_style}}，难度符合 {{difficulty}}，并结合 jd_summary、resume_content、recent_history、history_summary。
   4. updated_history_summary 必须为中文，<=80字，聚焦“已覆盖能力点+待验证点”。
-  5. flow_control 规则：
-     - stage_transition=continue: target_stage 必须保持当前阶段
-     - stage_transition=switch: target_stage 必须是下一个阶段，且不等于当前阶段
+    5. flow_control 规则（严格依据 current_stage / next_stage）：
+      - stage_transition=continue: target_stage 必须等于 current_stage
+      - stage_transition=switch: target_stage 必须等于 next_stage，且不等于 current_stage
      - stage_transition=end: target_stage 必须为 end
   6. 当用户回答为空、跑题或信息不足时：不得 end，不得盲目 switch，应 continue 并提出澄清型追问。
   7. 面试流程应该按照intro -> resume_deep_dive -> tech_general->tech_scenario->reverse_qa->end的顺序推进，不得跳跃。
 
 format_requirements: |
   {
+    "immediate_feedback": "对上一轮回答的即时点评",
     "question": "下一个面试问题",
     "updated_history_summary": "100字以内面试进展总结",
     "flow_control": {
       "stage_transition": "continue | switch | end",
       "target_stage": "intro | resume_deep_dive | tech_general | tech_scenario | reverse_qa | end"
-    },
-    "immediate_feedback": "对上一轮回答的即时点评"
+    }
   }
 
 input_context: |
@@ -40,3 +40,5 @@ input_context: |
   <resume_content>{{resume_content}}</resume_content>
   <recent_history>{{recent_history}}</recent_history>
   <history_summary>{{history_summary}}</history_summary>
+  <current_stage>{{current_stage}}</current_stage>
+  <next_stage>{{next_stage}}</next_stage>

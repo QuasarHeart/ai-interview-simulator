@@ -239,3 +239,8 @@ minio/
 local_models/
 ml-service/local_models/
 .cache/
+
+# Project outputs / scripts
+ml-service/scripts/
+
+ml-service/outputs/

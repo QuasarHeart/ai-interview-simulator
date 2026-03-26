@@ -52,7 +52,7 @@ class InterviewContext(BaseModel):
 
 class ScoreReason(BaseModel):
     reason: str
-    score: int  # 若允许小数可改为 float
+    score: float  # 若允许小数可改为 float
 
 class ProfessionalDetails(BaseModel):
     technical_correctness: ScoreReason
@@ -121,7 +121,10 @@ class AnalysisRequest(BaseModel):
 class ReportRequest(BaseModel):
     """对应 /api/v1/interview/report"""
     session_id: str
-    callback_url: str
+    callback_url: Optional[str] = Field(
+        default=None,
+        description="兼容保留字段；当前实现固定使用服务端模板回调地址。"
+    )
     interview_config: InterviewConfig
     interview_context: InterviewContext
     round_results: List[RoundResultItem]

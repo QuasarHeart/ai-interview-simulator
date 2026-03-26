@@ -11,7 +11,7 @@
   - 成功：`{"code":200,"message":"success|...","data":{...}}`
   - 异常：HTTP `500` + `{"detail":"..."}`
 
-> 说明：当前用于测试阶段，`DASHSCOPE_API_KEY` 已支持代码内默认值（硬编码）作为 fallback；生产请改回环境变量注入。
+> 说明：当前版本要求通过环境变量注入 `DASHSCOPE_API_KEY`，未配置时服务会启动失败。
 
 ---
 
@@ -243,6 +243,7 @@ curl -N -X POST 'http://127.0.0.1:8000/api/v1/interview/followup/stream' \
   `https://nas.feixingxr.com/api/v1/interviews/sess-001/report-callback`
 
 > 注：请求体中的 `callback_url` 字段当前保留用于兼容，但实际回调以固定模板拼接地址为准。
+> 即使传入 `callback_url`，也不会改变最终回调目标地址。
 
 ### 受理响应示例
 
@@ -251,6 +252,7 @@ curl -N -X POST 'http://127.0.0.1:8000/api/v1/interview/followup/stream' \
   "code": 200,
   "message": "报告生成任务已受理",
   "data": {
+    "interviewId": "sess-001",
     "session_id": "sess-001",
     "status": "processing",
     "callback_target_url": "https://nas.feixingxr.com/api/v1/interviews/sess-001/report-callback",
@@ -266,6 +268,7 @@ curl -N -X POST 'http://127.0.0.1:8000/api/v1/interview/followup/stream' \
   "code": 200,
   "message": "report_generated",
   "data": {
+    "interviewId": "sess-001",
     "session_id": "sess-001",
     "status": "completed",
     "report": {
@@ -288,6 +291,7 @@ curl -N -X POST 'http://127.0.0.1:8000/api/v1/interview/followup/stream' \
   "code": 500,
   "message": "report_generation_failed",
   "data": {
+    "interviewId": "sess-001",
     "session_id": "sess-001",
     "status": "failed",
     "error": "具体错误信息"
