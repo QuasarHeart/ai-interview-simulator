@@ -313,18 +313,18 @@ public class InterviewService {
 
                                         case "done":
                                             // 告诉前端结束了
-                                            emitter.send("[DONE]");
-                                            emitter.complete();
-
                                             if(metaData.containsKey("target_stage") && metaData.get("target_stage").toString().equals("end")){
+                                                emitter.send("[END]");
                                                 InterviewEntity endInterview = getInterviewOrElseThrow(interviewId);
                                                 endInterview.setInterviewStatus("WAITING_REPORT");
                                                 interviewRepository.save(endInterview);
 
                                                 // 尝试触发报告生成
                                                 self.tryTriggerReportGeneration(interviewId);
+                                            } else{
+                                                emitter.send("[DONE]");
                                             }
-
+                                            emitter.complete();
                                             // 结束后执行数据库落库操作
                                             saveTurnMetaData(interviewId, queBuffer.toString(), metaData);
                                             break;
