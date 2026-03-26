@@ -586,11 +586,14 @@ public class InterviewServiceImpl implements InterviewService {
 
         GenerateReportRequest requestBody = buildGenerateReportRequest(interview, turnsEntities, callbackUrl);
 
-        Result result = restClient.post()
+        Result response = restClient.post()
                 .uri("/report")
                 .body(requestBody)
                 .retrieve()
                 .body(Result.class);
+        if (response == null || !Integer.valueOf(200).equals(response.getCode())) {
+            throw new ServiceException(500, "评价服务异常: " + (response != null ? response.getMsg() : "无响应"));
+        }
     }
 
     @Override

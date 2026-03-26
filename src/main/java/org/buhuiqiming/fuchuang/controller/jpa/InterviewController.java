@@ -23,7 +23,6 @@ import java.util.Map;
 
 /**
  * 面试相关接口
- * @moudle 面试会话相关
  */
 @Slf4j
 @RestController
@@ -83,19 +82,6 @@ public class InterviewController {
         return interviewService.streamPythonResponse(interviewId, audioAns);
     }
 
-    @PostMapping(value = "/asr-callback", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
-    public String getAsrCallBack(@RequestParam Map<String, String> callbackData){
-        String codeStr = callbackData.get("code");
-        if (!"0".equals(codeStr)) {
-            System.out.println("识别失败，原因：" + callbackData.get("message"));
-            return "{\"code\": 0, \"message\": \"success\"}"; // 失败了也要回成功，不然腾讯云会一直重试
-        }
-
-        String result = callbackData.get("text");
-
-        return "{\"code\": 0, \"message\": \"success\"}";
-    }
-
     /**
      * 主动结束面试
      */
@@ -148,19 +134,16 @@ public class InterviewController {
     @GetMapping("/{interviewId}/report")
     public Result getInterviewReport(@PathVariable String interviewId) throws Exception{
         String status = interviewService.getInterviewStatus(interviewId);
-        switch (status){
-            case "FINISHED":
-                return Result.error(409, "该面试会话已手动结束，无法生成报告");
-            case "WAITING_REPORT":
-                return Result.success(202, "正在评价回复，请稍候");
-            case "REPORTING":
-                return Result.success(202, "报告正在生成中，请稍候");
-            case "REPORTED":
+        return switch (status) {
+            case "FINISHED" -> Result.error(409, "该面试会话已手动结束，无法生成报告");
+            case "WAITING_REPORT" -> Result.success(202, "正在评价回复，请稍候");
+            case "REPORTING" -> Result.success(202, "报告正在生成中，请稍候");
+            case "REPORTED" -> {
                 ReportResultVO data = interviewService.handleReportDataForFrontend(interviewId);
-                return Result.success(data);
-            default:
-                return Result.error(500, "面试会话状态异常，请联系管理员");
-        }
+                yield Result.success(data);
+            }
+            default -> Result.error(500, "面试会话状态异常，请联系管理员");
+        };
     }
 
 }
