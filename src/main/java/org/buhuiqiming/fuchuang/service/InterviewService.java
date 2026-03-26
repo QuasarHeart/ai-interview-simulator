@@ -14,6 +14,8 @@ import java.util.List;
 
 public interface InterviewService {
 
+    String getFormattedStartTime(String interviewId);
+
     // 面试会话不存在错误码判断
     InterviewEntity getInterviewOrElseThrow(String interviewId);
 
