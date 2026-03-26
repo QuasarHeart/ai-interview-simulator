@@ -59,10 +59,9 @@ public class FileServiceImpl implements FileService {
             }
             else if(request.getMethod().equals("GET")){
                 if(dir.equals("avatar"))
-                    extension = "png";
+                    key = userMapper.getAvatar(UserContext.get());
                 else if(dir.equals("vita"))
-                    extension = "pdf";
-                    key = dir + "/" + UserContext.get() + "." + extension;
+                    key = userMapper.getVita(UserContext.get());
             }
 
             log.info("URL签名，签名方法:{},header:{},param:{},key:{}", request.getMethod(), headers, params, key);
