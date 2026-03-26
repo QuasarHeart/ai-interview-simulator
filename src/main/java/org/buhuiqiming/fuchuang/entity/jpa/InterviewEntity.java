@@ -41,10 +41,10 @@ public class InterviewEntity {
     @Column(nullable = false)
     private String mode;
 
-    // 会话状态: CREATED, RUNNING, FINISHED, REPORTING(正在生成报告), REPORTED(已经生成报告)
+    // 会话状态: CREATED, RUNNING, FINISHED, WAITING_REPORT, REPORTING(正在生成报告), REPORTED(已经生成报告)
     @Column(nullable = false)
     private String interviewStatus;
-    // CREATED -> RUNNING -> FINISHED -> REPORTING -> REPORTED
+    // CREATED -> RUNNING -> FINISHED -> WAITING_REPORT -> REPORTING -> REPORTED
 
     // 目前面试轮次
     @Column
