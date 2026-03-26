@@ -225,7 +225,6 @@ public class InterviewServiceImpl implements InterviewService {
         Long currentUserId = UserContext.get();
         String resumeContent = userMapper.getVitaContent(currentUserId);
 
-
         interviewTurnsRepository.save(interviewTurnsEntity);
 
         Map<String, String> messageBody = new HashMap<>();
@@ -579,8 +578,6 @@ public class InterviewServiceImpl implements InterviewService {
         if(!"WAITING_REPORT".equals(interview.getInterviewStatus())){
             throw new ServiceException(409, "当前面试会话未满足获取报告状态条件");
         }
-        interview.setInterviewStatus("REPORTING");
-        interviewRepository.save(interview);
         List<InterviewTurnsEntity> turnsEntities = interviewTurnsRepository.findByInterviewIdOrderByTurnNumberAsc(interviewId);
         String callbackUrl = "https://nas.feixingxr.com/api/v1/interviews/{interviewId}/report-callback";
 

@@ -146,4 +146,13 @@ public class InterviewController {
         };
     }
 
+    /**
+     * 手动触发面试报告生成
+     * ToDo 仅作测试使用
+     */
+    @GetMapping("/{interviewId}/trigger-report")
+    public void getInterviewTriggerReport(@PathVariable String interviewId) throws Exception{
+        interviewService.tryTriggerReportGeneration(interviewId);
+    }
+
 }
