@@ -12,7 +12,7 @@ public class InterviewVO {
     private String jobRole;
     private String difficulty;
     private String mode;
-    private Duration duration;
+    private Long duration;
     private float score; // 对应实体类里的 totalScore
     // 具体层面的得分
     private Map<String, Integer> scoresDelta;

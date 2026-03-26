@@ -8,7 +8,6 @@ import org.buhuiqiming.fuchuang.dto.CreateInterviewDTO;
 import org.buhuiqiming.fuchuang.dto.GenerateReportResponse;
 import org.buhuiqiming.fuchuang.dto.Result;
 import org.buhuiqiming.fuchuang.dto.SubmitAnswerTextDTO;
-import org.buhuiqiming.fuchuang.entity.jpa.InterviewEntity;
 import org.buhuiqiming.fuchuang.exception.ServiceException;
 import org.buhuiqiming.fuchuang.service.InterviewService;
 import org.buhuiqiming.fuchuang.util.ASR;
@@ -50,10 +49,12 @@ public class InterviewController {
         // 创建初步的数据库interview实体类记录
         String interviewId = interviewService.createInterview(dto);
         String firstQue = interviewService.startInterview(interviewId);
+        String formattedTime = interviewService.getFormattedStartTime(interviewId);
 
         // 具体返回结果构造
         Map<String, Object> data = new HashMap<>();
         data.put("interviewId", interviewId);
+        data.put("startTime", formattedTime);
         data.put("status", "RUNNING");
         data.put("question", firstQue);
 
@@ -70,16 +71,13 @@ public class InterviewController {
 
     /**
      * 提交音频回答
-     * 目前处理的方法有三种：
      * 首先是针对1分钟以内，3MB大小的音频文件的getAudioToTextSimpleASR -- 同步
-     * 其次是无限制的录音文件识别，这个需要进行音频文件的云端存储，异步执行
      * 最后是极速的录音文件识别，100MB以下，2小时以下，同步执行 目前来说最好的选择
      */
     @PostMapping("/{interviewId}/ans/voice")
     public SseEmitter submitAnswerVoice(@PathVariable String interviewId, @RequestParam("file") MultipartFile voiceAnswer) throws Exception{
+        // 短语音情况下的选择
         // String audioAns = interviewService.getAudioToTextSimpleASR(voiceAnswer);
-        // interviewService.getAudioToTextASR(voiceAnswer);
-        // ToDo 如果使用录音文件识别，这里需要等待腾讯云进行回调
 
         String audioAns = asr.getAudioToTextASRFast(voiceAnswer);
         return interviewService.streamPythonResponse(interviewId, audioAns);
@@ -106,12 +104,13 @@ public class InterviewController {
         interviewService.finishInterview(interviewId);
 
         Map<String, Object> data = new HashMap<>();
+        data.put("interviewId", interviewId);
         data.put("status", "FINISHED");
         return Result.success(data);
     }
 
     /**
-     * 获取用户所有的面试记录和对话详情（一次性返回）
+     * 获取用户所有的面试记录（一次性返回）
      */
     @GetMapping("/all")
     public Result getAllInterviews() {
@@ -151,13 +150,16 @@ public class InterviewController {
         String status = interviewService.getInterviewStatus(interviewId);
         switch (status){
             case "FINISHED":
+                return Result.error(409, "该面试会话已手动结束，无法生成报告");
+            case "WAITING_REPORT":
+                return Result.success(202, "正在评价回复，请稍候");
             case "REPORTING":
-                return Result.success(202, "报告正在生成中");
+                return Result.success(202, "报告正在生成中，请稍候");
             case "REPORTED":
                 ReportResultVO data = interviewService.handleReportDataForFrontend(interviewId);
                 return Result.success(data);
             default:
-                return Result.error(500, "面试会话异常，请联系管理员");
+                return Result.error(500, "面试会话状态异常，请联系管理员");
         }
     }
 

@@ -47,6 +47,8 @@ public class InterviewServiceImpl implements InterviewService {
     private final StringRedisTemplate stringRedisTemplate;
 
     private final int historyTurnsCount = 4;
+    private static final java.time.format.DateTimeFormatter TIME_FORMATTER =
+            java.time.format.DateTimeFormatter.ofPattern("yyyy年MM月dd日HH:mm");
 
     @Autowired
     public InterviewServiceImpl(InterviewRepository interviewRepository,
@@ -67,6 +69,12 @@ public class InterviewServiceImpl implements InterviewService {
     @Autowired
     @Lazy
     private InterviewService self;
+
+    @Override
+    public String getFormattedStartTime(String interviewId){
+        InterviewEntity interview = getInterviewOrElseThrow(interviewId);
+        return interview.getCreateTime().format(TIME_FORMATTER);
+    }
 
     @Override
     public InterviewEntity getInterviewOrElseThrow(String interviewId) {
@@ -205,6 +213,10 @@ public class InterviewServiceImpl implements InterviewService {
     public SseEmitter streamPythonResponse(String interviewId, String answerText){
         SseEmitter emitter = new SseEmitter(0L);
         InterviewEntity interview = getInterviewOrElseThrow(interviewId);
+
+        if(!"RINNING".equals(interview.getInterviewStatus())){
+            throw new ServiceException(409, "该面试会话为开始或已结束");
+        }
 
         int currentTurn = interview.getTurnsNumber();
         InterviewTurnsEntity interviewTurnsEntity = interviewTurnsRepository.findByInterviewIdAndTurnNumber(interviewId, currentTurn);
@@ -434,7 +446,7 @@ public class InterviewServiceImpl implements InterviewService {
             interviewVO.setDifficulty(interview.getDifficulty());
             interviewVO.setMode(interview.getMode());
             interviewVO.setScore(interview.getTotalScore());
-            interviewVO.setDuration(interview.getDuration());
+            interviewVO.setDuration(interview.getDuration().getSeconds());
 
             resultList.add(interviewVO);
         }
@@ -443,7 +455,10 @@ public class InterviewServiceImpl implements InterviewService {
 
     @Override
     public List<InterviewTurnsVO> getInterviewTurns(String interviewId){
-        getInterviewOrElseThrow(interviewId);
+        InterviewEntity interview = getInterviewOrElseThrow(interviewId);
+        if(!Objects.equals(interview.getUserId(), UserContext.get())){
+            throw new ServiceException(500, "用户信息不匹配，请重试");
+        }
 
         List<InterviewTurnsEntity> turnsEntities = interviewTurnsRepository.findByInterviewIdOrderByTurnNumberAsc(interviewId);
 
@@ -561,6 +576,9 @@ public class InterviewServiceImpl implements InterviewService {
     @Override
     public void getInterviewReport(String interviewId){
         InterviewEntity interview = getInterviewOrElseThrow(interviewId);
+        if(!"WAITING_REPORT".equals(interview.getInterviewStatus())){
+            throw new ServiceException(409, "当前面试会话未满足获取报告状态条件");
+        }
         interview.setInterviewStatus("REPORTING");
         interviewRepository.save(interview);
         List<InterviewTurnsEntity> turnsEntities = interviewTurnsRepository.findByInterviewIdOrderByTurnNumberAsc(interviewId);

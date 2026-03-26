@@ -29,7 +29,7 @@ public class EvaluationStreamConsumer implements StreamListener<String, MapRecor
         String interviewId = message.getValue().get("interviewId");
         int turnNumber = Integer.parseInt(message.getValue().get("turnNumber"));
 
-        log.info("MQ 消费者接单: 开始执行20秒评价任务, interviewId: {}, turnNumber: {}", interviewId, turnNumber);
+        log.info("MQ 消费者接单: 开始执行评价任务, interviewId: {}, turnNumber: {}", interviewId, turnNumber);
 
         try {
             InterviewEntity interview = interviewService.getInterviewOrElseThrow(interviewId);
