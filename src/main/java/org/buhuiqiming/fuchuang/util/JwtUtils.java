@@ -33,20 +33,20 @@ public class JwtUtils {
         String token = Jwts.builder()
                 .claims(claims)
                 .issuedAt(new Date()) // 签发时间
-                .expiration(new Date(System.currentTimeMillis() + 300000)) // 1小时过期
+                .expiration(new Date(System.currentTimeMillis() + 3600000)) // 1小时过期
                 .signWith(key) // 传入生成的 SecretKey 对象
                 .compact();
         //防止重复登陆，目前仅支持一个用户同时登录，未来可能添加一个用户同时登录多处
         String lockKey = "lock:token:" + claims.get("id");
 
-        if (redisTemplate.opsForValue().setIfAbsent(lockKey, "1", 5, TimeUnit.MINUTES)) {
+        if (redisTemplate.opsForValue().setIfAbsent(lockKey, "1", 60, TimeUnit.MINUTES)) {
             log.info("生成token成功,token:{}", token);
         } else {
             log.info("重复登录,token:{}", token);
             throw new ServiceException(401, "重复登录，当前用户已经登陆");
         }
 
-        redisTemplate.opsForValue().set("token:userid:" + claims.get("id"), token, 6, TimeUnit.MINUTES);
+        redisTemplate.opsForValue().set("token:userid:" + claims.get("id"), token, 75, TimeUnit.MINUTES);
 
         return token;
 
