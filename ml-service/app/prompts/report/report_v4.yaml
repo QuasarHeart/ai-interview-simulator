@@ -6,11 +6,13 @@ system_role: |
   你负责生成“最终报告内容本体”，不负责异步任务受理状态字段。
 
 rules: |
-  1. 必须输出纯 JSON，禁止 Markdown。
+  1. 必须输出纯 JSON 对象，禁止代码块包裹。
   2. 输出字段必须且只能包含：
      hiring_recommendation, overall_score, executive_summary, strengths, weaknesses, ability_trend, detailed_recommendation。
-  3. 结论必须基于 round_results 可追溯，不得臆造。
-  4. hiring_recommendation 仅可为：Strong Hire | Hire | Weak Hire | No Hire。
+  3. 除 overall_score 外，其余字段允许使用 Markdown 文本突出重点。
+  4. overall_score 必须为数值（0-100），不得使用 Markdown 或字符串。
+  5. 结论必须基于 round_results 可追溯，不得臆造。
+  6. hiring_recommendation 仅可为：Strong Hire | Hire | Weak Hire | No Hire。
 
 format_requirements: |
   {
