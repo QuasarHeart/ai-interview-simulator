@@ -2,10 +2,6 @@ package org.buhuiqiming.fuchuang.VO;
 
 import lombok.Builder;
 import lombok.Data;
-import org.buhuiqiming.fuchuang.dto.GenerateReportRequest;
-import org.buhuiqiming.fuchuang.dto.TurnEvaluationResult;
-import tools.jackson.databind.PropertyNamingStrategies;
-import tools.jackson.databind.annotation.JsonNaming;
 
 import java.io.Serializable;
 import java.util.List;
