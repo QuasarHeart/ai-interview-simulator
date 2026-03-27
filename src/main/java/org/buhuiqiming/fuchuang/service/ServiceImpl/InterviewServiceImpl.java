@@ -1,6 +1,7 @@
 package org.buhuiqiming.fuchuang.service.ServiceImpl;
 
 import lombok.extern.slf4j.Slf4j;
+import org.buhuiqiming.fuchuang.VO.GrowthCurveVO;
 import org.buhuiqiming.fuchuang.VO.InterviewVO;
 import org.buhuiqiming.fuchuang.VO.InterviewTurnsVO;
 import org.buhuiqiming.fuchuang.VO.ReportResultVO;
@@ -868,5 +869,170 @@ public class InterviewServiceImpl implements InterviewService {
         } else{
             log.info("已经完成所有面试轮次评价，但是更新面试会话状态失败, {}", interviewId);
         }
+    }
+
+    @Override
+    public GrowthCurveVO getGrowthCurve(Long userId, String jobRole) {
+        // 1. 获取按时间正序排列的面试记录
+        List<InterviewEntity> interviews = interviewRepository.findAllByUserIdAndJobRoleOrderByCreateTimeAsc(userId, jobRole);
+
+        // 2. 判空处理，交由 GlobalExceptionHandler 处理返回给前端的 Result.error
+        if (interviews == null || interviews.isEmpty()) {
+            throw new ServiceException(404, "该岗位暂无面试记录，无法生成成长曲线");
+        }
+
+        int interviewCount = interviews.size();
+        float totalScoreSum = 0f;
+        float bestScore = 0f;
+        long totalDurationSeconds = 0L;
+        List<Float> growthPoints = new ArrayList<>();
+
+        // 用于计算 DimensionScores (大维度平均分) [0]存总和，[1]存有效计数
+        float[] profScoreStat = new float[2];
+        float[] cogScoreStat = new float[2];
+        float[] expScoreStat = new float[2];
+
+        // 用于计算 DimensionDetails (细则平均分) [0]存总和，[1]存有效计数
+        float[] techCorr = new float[2];
+        float[] knowMatch = new float[2];
+        float[] jobMatch = new float[2];
+        float[] engPrac = new float[2];
+
+        float[] logicStruct = new float[2];
+        float[] probSolv = new float[2];
+        float[] sysThink = new float[2];
+
+        float[] clarity = new float[2];
+        float[] confStab = new float[2];
+        float[] profMat = new float[2];
+
+        // 3. 遍历聚合数据
+        for (InterviewEntity interview : interviews) {
+            float score = interview.getTotalScore();
+            totalScoreSum += score;
+            growthPoints.add(score); // 记录成长点（按时间正序）
+
+            if (score > bestScore) {
+                bestScore = score;
+            }
+
+            if (interview.getDuration() != null) {
+                totalDurationSeconds += interview.getDuration().getSeconds();
+            }
+
+            // 累加评价维度分数
+            TurnEvaluationResult eval = interview.getTotalEvaluation();
+            if (eval != null) {
+                // 累加大维度分数
+                if (eval.getDimensionScores() != null) {
+                    accumulateFloatStat(profScoreStat, eval.getDimensionScores().getProfessional());
+                    accumulateFloatStat(cogScoreStat, eval.getDimensionScores().getCognition());
+                    accumulateFloatStat(expScoreStat, eval.getDimensionScores().getExpression());
+                }
+
+                // 累加专业能力细则
+                if (eval.getProfessional() != null) {
+                    accumulateMetricStat(techCorr, eval.getProfessional().getTechnicalCorrectness());
+                    accumulateMetricStat(knowMatch, eval.getProfessional().getKnowledgeMatch());
+                    accumulateMetricStat(jobMatch, eval.getProfessional().getJobMatch());
+                    accumulateMetricStat(engPrac, eval.getProfessional().getEngineeringPractice());
+                }
+
+                // 累加认知能力细则
+                if (eval.getCognition() != null) {
+                    accumulateMetricStat(logicStruct, eval.getCognition().getLogicStructure());
+                    accumulateMetricStat(probSolv, eval.getCognition().getProblemSolving());
+                    accumulateMetricStat(sysThink, eval.getCognition().getSystemThinking());
+                }
+
+                // 累加表达能力细则
+                if (eval.getExpression() != null) {
+                    accumulateMetricStat(clarity, eval.getExpression().getClarity());
+                    accumulateMetricStat(confStab, eval.getExpression().getConfidenceStability());
+                    accumulateMetricStat(profMat, eval.getExpression().getProfessionalMaturity());
+                }
+            }
+        }
+
+        // 4. 获取最近一次面试的优缺点（列表的最后一个元素）
+        InterviewEntity latestInterview = interviews.get(interviews.size() - 1);
+        List<String> latestStrengths = latestInterview.getStrengths() != null ? latestInterview.getStrengths() : new ArrayList<>();
+        List<String> latestWeaknesses = latestInterview.getWeaknesses() != null ? latestInterview.getWeaknesses() : new ArrayList<>();
+
+        // 5. 计算各项平均值
+        float overallRating = totalScoreSum / interviewCount;
+        // 练习时间：秒转为小时 (保留浮点精度)
+        float practiceTimeHours = totalDurationSeconds / 3600.0f;
+
+        // 构建大维度平均分对象
+        GrowthCurveVO.DimensionScores avgDimensionScores = GrowthCurveVO.DimensionScores.builder()
+                .professional(calculateAverage(profScoreStat))
+                .cognition(calculateAverage(cogScoreStat))
+                .expression(calculateAverage(expScoreStat))
+                .build();
+
+        // 构建细则平均分对象
+        GrowthCurveVO.DimensionDetails avgDimensionDetails = GrowthCurveVO.DimensionDetails.builder()
+                .professional(GrowthCurveVO.Professional.builder()
+                        .technicalCorrectness(calculateAverage(techCorr))
+                        .knowledgeMatch(calculateAverage(knowMatch))
+                        .jobMatch(calculateAverage(jobMatch))
+                        .engineeringPractice(calculateAverage(engPrac))
+                        .build())
+                .cognition(GrowthCurveVO.Cognition.builder()
+                        .logicStructure(calculateAverage(logicStruct))
+                        .problemSolving(calculateAverage(probSolv))
+                        .systemThinking(calculateAverage(sysThink))
+                        .build())
+                .expression(GrowthCurveVO.Expression.builder()
+                        .clarity(calculateAverage(clarity))
+                        .confidenceStability(calculateAverage(confStab))
+                        .professionalMaturity(calculateAverage(profMat))
+                        .build())
+                .build();
+
+        // 6. 组装最终的 VO 并返回
+        return GrowthCurveVO.builder()
+                .jobRole(jobRole)
+                .overallRating(overallRating)
+                .interviewCount(interviewCount)
+                .bestScore(bestScore)
+                .practiceTime(practiceTimeHours)
+                .growthPoints(growthPoints)
+                .strengths(latestStrengths)
+                .weaknesses(latestWeaknesses)
+                .dimensionScores(avgDimensionScores)
+                .dimensionDetails(avgDimensionDetails)
+                .build();
+    }
+
+    /**
+     * 辅助方法：用于累加 TurnEvaluationResult.MetricDetail 的整数分
+     */
+    private void accumulateMetricStat(float[] stat, TurnEvaluationResult.MetricDetail detail) {
+        if (detail != null && detail.getScore() != null) {
+            stat[0] += detail.getScore();
+            stat[1] += 1;
+        }
+    }
+
+    /**
+     * 辅助方法：用于累加 float 类型的分数
+     */
+    private void accumulateFloatStat(float[] stat, float score) {
+        if (score > 0) { // 假设0分代表未打分或无效
+            stat[0] += score;
+            stat[1] += 1;
+        }
+    }
+
+    /**
+     * 辅助方法：计算平均分（如果无有效打分，则默认返回 0f）
+     */
+    private float calculateAverage(float[] stat) {
+        if (stat[1] == 0) {
+            return 0f;
+        }
+        return stat[0] / stat[1];
     }
 }

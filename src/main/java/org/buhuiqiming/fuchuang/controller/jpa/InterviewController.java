@@ -1,6 +1,7 @@
 package org.buhuiqiming.fuchuang.controller.jpa;
 
 import lombok.extern.slf4j.Slf4j;
+import org.buhuiqiming.fuchuang.VO.GrowthCurveVO;
 import org.buhuiqiming.fuchuang.VO.InterviewTurnsVO;
 import org.buhuiqiming.fuchuang.VO.InterviewVO;
 import org.buhuiqiming.fuchuang.VO.ReportResultVO;
@@ -154,6 +155,16 @@ public class InterviewController {
     @GetMapping("/{interviewId}/trigger-report")
     public void getInterviewTriggerReport(@PathVariable String interviewId){
         interviewService.tryTriggerReportGeneration(interviewId);
+    }
+
+    /**
+     * 获取成长曲线
+     */
+    @GetMapping("/growth-curve")
+    public Result getGrowthCurve(@RequestParam("jobRole") String jobRole){
+        Long currentUserId = UserContext.get();
+        GrowthCurveVO curve = interviewService.getGrowthCurve(currentUserId, jobRole);
+        return Result.success(curve);
     }
 
 }

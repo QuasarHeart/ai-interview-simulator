@@ -22,4 +22,7 @@ public interface InterviewRepository extends JpaRepository<InterviewEntity,Long>
     @Modifying
     @Query("UPDATE InterviewEntity i SET i.interviewStatus = :newState WHERE i.interviewId = :interviewId AND i.interviewStatus = :oldState")
     int updateStatusIfWaiting(@Param("interviewId") String interviewId, @Param("newState") String newState, @Param("oldState") String oldState);
+
+    // 按 UserId 和 JobRole 检索，并按 CreateTime 升序排序（时间正序）
+    List<InterviewEntity> findAllByUserIdAndJobRoleOrderByCreateTimeAsc(Long userId, String jobRole);
 }
