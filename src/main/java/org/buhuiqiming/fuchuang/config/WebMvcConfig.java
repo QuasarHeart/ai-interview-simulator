@@ -22,7 +22,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/code",// 发送验证码
                         "/users/resetPassword",// 重置密码
                         "/cos/analyze",  //COS回调
-                        "/api/v1/interviews/{interviewId}/report-callback"
+                        "/api/v1/interviews/*/report-callback"
                 );
     }
     @Override
