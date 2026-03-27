@@ -1,5 +1,6 @@
 package org.buhuiqiming.fuchuang.service;
 
+import org.buhuiqiming.fuchuang.VO.GrowthCurveVO;
 import org.buhuiqiming.fuchuang.VO.InterviewVO;
 import org.buhuiqiming.fuchuang.VO.InterviewTurnsVO;
 import org.buhuiqiming.fuchuang.VO.ReportResultVO;
@@ -57,4 +58,6 @@ public interface InterviewService {
 
     // 尝试触发报告生成
     void tryTriggerReportGeneration(String interviewId);
+
+    GrowthCurveVO getGrowthCurve(Long userId, String jobRole);
 }
