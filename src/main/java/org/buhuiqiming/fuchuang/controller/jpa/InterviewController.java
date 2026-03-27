@@ -8,7 +8,6 @@ import org.buhuiqiming.fuchuang.dto.CreateInterviewDTO;
 import org.buhuiqiming.fuchuang.dto.GenerateReportResponse;
 import org.buhuiqiming.fuchuang.dto.Result;
 import org.buhuiqiming.fuchuang.dto.SubmitAnswerTextDTO;
-import org.buhuiqiming.fuchuang.entity.jpa.InterviewEntity;
 import org.buhuiqiming.fuchuang.exception.ServiceException;
 import org.buhuiqiming.fuchuang.service.InterviewService;
 import org.buhuiqiming.fuchuang.util.ASR;
