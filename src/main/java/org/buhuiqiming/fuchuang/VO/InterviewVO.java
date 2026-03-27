@@ -1,8 +1,10 @@
 package org.buhuiqiming.fuchuang.VO;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
-import java.util.List;
 import java.util.Map;
 
 @Data
@@ -13,7 +15,5 @@ public class InterviewVO {
     private String mode;
     private Long duration;
     private float score; // 对应实体类里的 totalScore
-    // 具体层面的得分
-    private Map<String, Integer> scoresDelta;
-    private List<InterviewTurnsVO> turns;
+    private String startTime;
 }

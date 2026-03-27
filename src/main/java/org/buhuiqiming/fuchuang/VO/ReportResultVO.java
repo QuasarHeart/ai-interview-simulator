@@ -37,26 +37,26 @@ public class ReportResultVO {
     @Data
     @Builder
     public static class Professional implements Serializable {
-        private int technicalCorrectness; // 改为 int
-        private int knowledgeMatch;       // 改为 int
-        private int jobMatch;             // 改为 int
-        private int engineeringPractice;  // 改为 int
+        private int technicalCorrectness;  
+        private int knowledgeMatch;        
+        private int jobMatch;              
+        private int engineeringPractice;   
     }
 
     @Data
     @Builder
     public static class Cognition implements Serializable {
-        private int logicStructure;       // 改为 int
-        private int problemSolving;       // 改为 int
-        private int systemThinking;       // 改为 int
+        private int logicStructure;        
+        private int problemSolving;        
+        private int systemThinking;        
     }
 
     @Data
     @Builder
     public static class Expression implements Serializable {
-        private int clarity;              // 改为 int
-        private int confidenceStability;  // 改为 int
-        private int professionalMaturity; // 改为 int
+        private int clarity;               
+        private int confidenceStability;   
+        private int professionalMaturity;  
     }
 
     private String executiveSummary;
