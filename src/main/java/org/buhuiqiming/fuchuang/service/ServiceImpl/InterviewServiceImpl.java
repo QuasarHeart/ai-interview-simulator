@@ -20,6 +20,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -214,7 +216,7 @@ public class InterviewServiceImpl implements InterviewService {
         SseEmitter emitter = new SseEmitter(0L);
         InterviewEntity interview = getInterviewOrElseThrow(interviewId);
 
-        if(!"RINNING".equals(interview.getInterviewStatus())){
+        if(!"RUNNING".equals(interview.getInterviewStatus())){
             throw new ServiceException(409, "该面试会话为开始或已结束");
         }
 
@@ -320,14 +322,16 @@ public class InterviewServiceImpl implements InterviewService {
                                                 emitter.send("[END]");
                                                 InterviewEntity endInterview = getInterviewOrElseThrow(interviewId);
                                                 endInterview.setInterviewStatus("WAITING_REPORT");
+                                                endInterview.setDuration(Duration.between(endInterview.getCreateTime(), LocalDateTime.now()));
                                                 interviewRepository.save(endInterview);
 
                                                 self.tryTriggerReportGeneration(interviewId);
                                             } else{
                                                 emitter.send("[DONE]");
                                             }
-                                            emitter.complete();
                                             saveTurnMetaData(interviewId, queBuffer.toString(), metaData);
+                                            emitter.complete();
+
                                             break;
 
                                         case "error":
@@ -575,7 +579,7 @@ public class InterviewServiceImpl implements InterviewService {
     @Override
     public void getInterviewReport(String interviewId){
         InterviewEntity interview = getInterviewOrElseThrow(interviewId);
-        if(!"WAITING_REPORT".equals(interview.getInterviewStatus())){
+        if(!"REPORTING".equals(interview.getInterviewStatus())){
             throw new ServiceException(409, "当前面试会话未满足获取报告状态条件");
         }
         List<InterviewTurnsEntity> turnsEntities = interviewTurnsRepository.findByInterviewIdOrderByTurnNumberAsc(interviewId);
@@ -625,7 +629,7 @@ public class InterviewServiceImpl implements InterviewService {
             log.info("面试报告回调处理完成并成功落库, interviewId: {}", interviewId);
 
         } catch (ServiceException se) {
-            throw se;
+            throw new ServiceException(se.getCode(), se.getMessage());
         } catch (Exception e) {
             log.error("处理面试报告回调时发生未知异常, interviewId: {}", interviewId, e);
             throw new ServiceException(500, "处理面试报告回调异常");
@@ -852,7 +856,13 @@ public class InterviewServiceImpl implements InterviewService {
         int updateStatus = interviewRepository.updateStatusIfWaiting(interviewId, "REPORTING", "WAITING_REPORT");
         if(updateStatus > 0){
             log.info("已经完成所有面试轮次评价，开始生成报告");
-            executorService.execute(() -> getInterviewReport(interviewId));
+            // 注册事务同步器：当前事务提交后，才去触发子线程
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    executorService.execute(() -> getInterviewReport(interviewId));
+                }
+            });
         } else{
             log.info("已经完成所有面试轮次评价，但是更新面试会话状态失败, {}", interviewId);
         }
