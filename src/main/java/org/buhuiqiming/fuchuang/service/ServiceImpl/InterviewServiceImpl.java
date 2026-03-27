@@ -599,7 +599,6 @@ public class InterviewServiceImpl implements InterviewService {
 
     @Override
     public void handleInterviewReportCallback(String interviewId, GenerateReportResponse response){
-        log.info("接收到面试报告回调, interviewId: {}, response: {}", interviewId, response);
 
         if (response == null) {
             log.error("面试报告回调失败: 响应体为空, interviewId: {}", interviewId);

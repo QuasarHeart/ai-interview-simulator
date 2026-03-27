@@ -125,6 +125,7 @@ public class InterviewController {
             log.info("返回报告为空");
             throw new ServiceException(500, "返回报告为空");
         }
+        log.info("接收到面试报告回调, interviewId: {}, response: {}", interviewId, response);
         interviewService.handleInterviewReportCallback(interviewId, response);
     }
 
