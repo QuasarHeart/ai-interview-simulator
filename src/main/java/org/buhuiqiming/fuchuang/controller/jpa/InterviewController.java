@@ -42,7 +42,7 @@ public class InterviewController {
      * 创建面试会话
      */
     @PostMapping
-    public Result createInterview(@ModelAttribute CreateInterviewDTO dto) throws Exception{
+    public Result createInterview(@ModelAttribute CreateInterviewDTO dto){
 
         // 面试会话特征码 interviewId 的确定
         // 创建初步的数据库interview实体类记录
@@ -86,7 +86,7 @@ public class InterviewController {
      * 主动结束面试
      */
     @PostMapping("/{interviewId}/finish")
-    public Result finishInterview(@PathVariable String interviewId) throws Exception{
+    public Result finishInterview(@PathVariable String interviewId){
         interviewService.finishInterview(interviewId);
 
         Map<String, Object> data = new HashMap<>();
@@ -111,7 +111,7 @@ public class InterviewController {
      * 获取用户某一次面试的相关记录
      */
     @GetMapping("/{interviewId}/history")
-    public Result getInterviewHistory(@PathVariable String interviewId) throws Exception{
+    public Result getInterviewHistory(@PathVariable String interviewId){
         List<InterviewTurnsVO> data = interviewService.getInterviewTurns(interviewId);
         return Result.success(data);
     }
@@ -133,7 +133,7 @@ public class InterviewController {
      * 获取面试报告
      */
     @GetMapping("/{interviewId}/report")
-    public Result getInterviewReport(@PathVariable String interviewId) throws Exception{
+    public Result getInterviewReport(@PathVariable String interviewId){
         String status = interviewService.getInterviewStatus(interviewId);
         return switch (status) {
             case "FINISHED" -> Result.error(409, "该面试会话已手动结束，无法生成报告");
@@ -152,7 +152,7 @@ public class InterviewController {
      * ToDo 仅作测试使用
      */
     @GetMapping("/{interviewId}/trigger-report")
-    public void getInterviewTriggerReport(@PathVariable String interviewId) throws Exception{
+    public void getInterviewTriggerReport(@PathVariable String interviewId){
         interviewService.tryTriggerReportGeneration(interviewId);
     }
 
