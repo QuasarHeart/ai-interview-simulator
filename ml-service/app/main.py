@@ -45,7 +45,7 @@ DIFFICULTY_POLICY = {
         "low_quality_end_threshold": 4,
         "low_quality_min_chars": 6,
         "stage_round_policy": {
-            "intro": {"min": 1, "max": 1},
+            "intro": {"min": 2, "max": 2},
             "resume_deep_dive": {"min": 1, "max": 2},
             "tech_general": {"min": 1, "max": 2},
             "tech_scenario": {"min": 1, "max": 2},
@@ -59,7 +59,7 @@ DIFFICULTY_POLICY = {
         "low_quality_end_threshold": 3,
         "low_quality_min_chars": 8,
         "stage_round_policy": {
-            "intro": {"min": 1, "max": 2},
+            "intro": {"min": 2, "max": 2},
             "resume_deep_dive": {"min": 2, "max": 3},
             "tech_general": {"min": 2, "max": 3},
             "tech_scenario": {"min": 2, "max": 3},
@@ -73,7 +73,7 @@ DIFFICULTY_POLICY = {
         "low_quality_end_threshold": 2,
         "low_quality_min_chars": 10,
         "stage_round_policy": {
-            "intro": {"min": 1, "max": 2},
+            "intro": {"min": 2, "max": 2},
             "resume_deep_dive": {"min": 2, "max": 3},
             "tech_general": {"min": 3, "max": 4},
             "tech_scenario": {"min": 3, "max": 4},
@@ -251,6 +251,113 @@ def _count_recent_low_quality_streak_on_stage(recent_history: list[Any], stage: 
     return streak
 
 
+def _latest_user_answer_on_stage(recent_history: list[Any], stage: str) -> str:
+    for item in reversed(recent_history or []):
+        fc = _history_item_flow_control(item)
+        if not fc:
+            continue
+        if fc.get("target_stage") != stage:
+            continue
+        return _history_item_user_content(item)
+    return ""
+
+
+def _is_no_more_questions_intent(answer: str) -> bool:
+    text = (answer or "").strip().lower()
+    if not text:
+        return False
+    compact = "".join(ch for ch in text if not ch.isspace())
+    compact = compact.strip("，。！？,.!;；:：")
+
+    # 明确排除“还有问题/继续问”类表达，避免误判提前结束。
+    negative_markers = {
+        "还有问题",
+        "还有一个问题",
+        "还有几个问题",
+        "还想问",
+        "我想再问",
+        "我再问",
+        "再确认",
+        "补充一个问题",
+        "anotherquestion",
+        "morequestions",
+        "one more question",
+    }
+    if any(marker in compact for marker in negative_markers):
+        return False
+
+    exact_phrases = {
+        "没问题了",
+        "没有问题了",
+        "没有其他问题",
+        "没其他问题",
+        "没有更多问题",
+        "没更多问题",
+        "我没有问题了",
+        "我没问题了",
+        "暂时没问题",
+        "暂时没有问题",
+        "不用了",
+        "不用问了",
+        "就这些",
+        "就这样",
+        "nomorequestions",
+        "noquestion",
+        "noquestions",
+        "none",
+        "nothing",
+        "nomorequestion",
+    }
+    polite_suffixes = {"", "谢谢", "感谢", "辛苦了", "thankyou", "thanks"}
+
+    if compact in exact_phrases:
+        return True
+    for phrase in exact_phrases:
+        if compact.startswith(phrase):
+            suffix = compact[len(phrase):].strip("，。！？,.!;；:：")
+            if suffix in polite_suffixes:
+                return True
+    return False
+
+
+def _latest_user_answer(recent_history: list[Any]) -> str:
+    if not recent_history:
+        return ""
+    return _history_item_user_content(recent_history[-1])
+
+
+def _ensure_stage_semantics(
+    flow_control: dict,
+    question: str,
+    immediate_feedback: str,
+    recent_history: list[Any],
+) -> tuple[str, str]:
+    stage = flow_control.get("target_stage", "intro")
+    q = (question or "").strip()
+    fb = (immediate_feedback or "").strip()
+
+    if stage == "reverse_qa":
+        invite_markers = {"反问", "想了解", "还有什么问题", "有什么问题", "你想问", "可以问"}
+        technical_markers = {"实现", "原理", "优化", "数据库", "并发", "索引", "线程", "缓存", "架构"}
+        if (any(marker in q for marker in technical_markers) and not any(marker in q for marker in invite_markers)) or not q:
+            q = "关于团队、岗位或业务方向，你还有什么想了解的吗？"
+
+    if stage == "end":
+        end_markers = {"感谢", "面试到这里", "今天的面试", "结束", "祝你"}
+        if not q or not any(marker in q for marker in end_markers):
+            q = "感谢你的时间，今天的面试就到这里，祝你顺利。"
+
+        asks_new_question = ("?" in fb or "？" in fb) or any(marker in fb for marker in {"你怎么看", "请你", "你可以", "如何"})
+        if not fb or asks_new_question:
+            last_answer = _latest_user_answer(recent_history)
+            if last_answer:
+                fb = "你刚才的反问很有价值，我们会在后续沟通中补充细节。"
+            else:
+                fb = "感谢你的交流，我们会尽快同步后续安排。"
+
+    return q, fb
+
+
 def _effective_current_stage(recent_history: list[Any], round_id: int | None = None) -> str:
     history_stage = _derive_current_stage_from_recent_history(recent_history)
     return history_stage
@@ -287,6 +394,8 @@ def _enforce_flow_control(
     max_rounds = stage_policy["max"]
     rounds_on_stage = _count_rounds_on_stage(recent_history, current)
     low_quality_streak = _count_recent_low_quality_streak_on_stage(recent_history, current, min_chars=low_quality_min_chars)
+    latest_answer = _latest_user_answer_on_stage(recent_history, current)
+    reverse_qa_done = current == "reverse_qa" and _is_no_more_questions_intent(latest_answer)
 
     next_stage = _get_next_stage(current)
     allow_end = (
@@ -304,6 +413,8 @@ def _enforce_flow_control(
 
     decision = proposed_transition
     if current == "end":
+        decision = "end"
+    elif reverse_qa_done:
         decision = "end"
     elif force_continue:
         decision = "continue"
@@ -339,6 +450,100 @@ def _enforce_flow_control(
             allow_end,
         )
     return enforced
+
+
+def _plan_flow_control(
+    recent_history: list[Any],
+    current_stage: str,
+    round_id: int,
+    difficulty: str | None,
+) -> dict:
+    # 先走策略裁决，再让模型按目标阶段出题，避免“先出题后纠正”导致语义错位。
+    return _enforce_flow_control(
+        {"stage_transition": "continue", "target_stage": current_stage},
+        recent_history=recent_history,
+        current_stage=current_stage,
+        round_id=round_id,
+        difficulty=difficulty,
+    )
+
+
+def _stage_round_index(recent_history: list[Any], stage: str) -> int:
+    return _count_rounds_on_stage(recent_history, stage) + 1
+
+
+def _normalize_history_summary(text: str) -> str:
+    summary = (text or "").strip()
+    if not summary:
+        return "已更新本轮面试进展。"
+    return summary
+
+
+def _normalize_stage_outputs(
+    flow_control: dict,
+    question: str,
+    immediate_feedback: str,
+    updated_history_summary: str,
+    recent_history: list[Any],
+) -> tuple[str, str, str]:
+    question, immediate_feedback = _ensure_stage_semantics(
+        flow_control=flow_control,
+        question=question,
+        immediate_feedback=immediate_feedback,
+        recent_history=recent_history,
+    )
+    return (
+        (question or "").strip(),
+        (immediate_feedback or "").strip(),
+        _normalize_history_summary(updated_history_summary),
+    )
+
+
+def _build_terminal_end_outputs(recent_history: list[Any]) -> tuple[str, str, str]:
+    flow_control = {"stage_transition": "end", "target_stage": "end"}
+    return (
+        "感谢你的时间，今天的面试就到这里，祝你顺利。",
+        "你刚才的反问很有价值，我们会在后续沟通中补充细节。" if _latest_user_answer_on_stage(recent_history, "reverse_qa") else "感谢你的交流，我们会尽快同步后续安排。",
+        _normalize_history_summary("面试已结束，等待后续流程通知。"),
+    )
+
+
+async def _call_generate_following_question(
+    engine: LLMEngine,
+    request: FollowupRequest,
+    target_stage: str,
+    stage_round_index: int,
+) -> dict:
+    try:
+        return await engine.generate_following_question(
+            request,
+            forced_current_stage=target_stage,
+            forced_next_stage=_get_next_stage(target_stage),
+            forced_stage_round_index=stage_round_index,
+        )
+    except TypeError:
+        # 兼容旧 stub/旧接口签名
+        return await engine.generate_following_question(request)
+
+
+async def _iterate_stream_following_question(
+    engine: LLMEngine,
+    request: FollowupRequest,
+    target_stage: str,
+    stage_round_index: int,
+):
+    try:
+        async for token in engine.stream_following_question(
+            request,
+            forced_current_stage=target_stage,
+            forced_next_stage=_get_next_stage(target_stage),
+            forced_stage_round_index=stage_round_index,
+        ):
+            yield token
+    except TypeError:
+        # 兼容旧 stub/旧接口签名
+        async for token in engine.stream_following_question(request):
+            yield token
 
 
 def _resolve_report_callback_url(interview_id: str) -> str:
@@ -470,15 +675,31 @@ async def followup_interview(request: FollowupRequest, http_request: Request):
     logger.info("[Followup][Request] %s", _to_log_json(request))
     try:
         engine = get_engine(http_request)
-        ai_result = await engine.generate_following_question(request)
         current_stage = _effective_current_stage(request.history_data.recent_history, round_id=request.round_id)
-        ai_result["flow_control"] = _enforce_flow_control(
-            ai_result.get("flow_control"),
+        planned_flow = _plan_flow_control(
             recent_history=request.history_data.recent_history,
             current_stage=current_stage,
             round_id=request.round_id,
             difficulty=request.interview_config.difficulty,
         )
+        target_stage = planned_flow["target_stage"]
+
+        if current_stage == "end":
+            question, immediate_feedback, updated_history_summary = _build_terminal_end_outputs(
+                request.history_data.recent_history
+            )
+            planned_flow = {"stage_transition": "end", "target_stage": "end"}
+        else:
+            stage_round_index = _stage_round_index(request.history_data.recent_history, target_stage)
+            ai_result = await _call_generate_following_question(engine, request, target_stage, stage_round_index)
+
+            question, immediate_feedback, updated_history_summary = _normalize_stage_outputs(
+                flow_control=planned_flow,
+                question=str(ai_result.get("question", "")),
+                immediate_feedback=str(ai_result.get("immediate_feedback", "")),
+                updated_history_summary=str(ai_result.get("updated_history_summary", "")),
+                recent_history=request.history_data.recent_history,
+            )
 
         response_payload = {
             "code": 200,
@@ -486,10 +707,10 @@ async def followup_interview(request: FollowupRequest, http_request: Request):
             "data": {
                 "session_id": request.session_id,
                 "round_id": request.round_id,
-                "question": ai_result["question"],
-                "updated_history_summary": ai_result["updated_history_summary"],
-                "immediate_feedback": ai_result["immediate_feedback"],
-                "flow_control": ai_result["flow_control"],
+                "question": question,
+                "updated_history_summary": updated_history_summary,
+                "immediate_feedback": immediate_feedback,
+                "flow_control": planned_flow,
             },
         }
         logger.info("[Followup][Response] %s", _to_log_json(response_payload))
@@ -509,30 +730,68 @@ async def followup_interview_stream(request: FollowupRequest, http_request: Requ
     engine = get_engine(http_request)
 
     current_stage = _effective_current_stage(request.history_data.recent_history, round_id=request.round_id)
+    planned_flow = _plan_flow_control(
+        recent_history=request.history_data.recent_history,
+        current_stage=current_stage,
+        round_id=request.round_id,
+        difficulty=request.interview_config.difficulty,
+    )
+    target_stage = planned_flow["target_stage"]
+    stage_round_index = _stage_round_index(request.history_data.recent_history, target_stage)
+
+    if current_stage == "end":
+        question, immediate_feedback, updated_history_summary = _build_terminal_end_outputs(
+            request.history_data.recent_history
+        )
+        planned_flow = {"stage_transition": "end", "target_stage": "end"}
+
+        async def terminal_event_gen():
+            async for evt in _yield_text_in_chunks(question, "question", chunk_size=12):
+                yield evt
+            async for evt in _yield_text_in_chunks(immediate_feedback, "immediate_feedback", chunk_size=12):
+                yield evt
+            yield _sse_event({'type': 'meta', 'session_id': request.session_id, 'round_id': request.round_id, 'updated_history_summary': updated_history_summary, 'flow_control': planned_flow}, ensure_ascii=False)
+            yield _sse_event({'type': 'done'}, ensure_ascii=False)
+
+        return StreamingResponse(
+            terminal_event_gen(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     async def event_gen():
         raw_acc = ""
         emitted_question = ""
         emitted_feedback = ""
         try:
-            async for token in engine.stream_following_question(request):
+            async for token in _iterate_stream_following_question(engine, request, target_stage, stage_round_index):
                 raw_acc += token
 
                 parsed_partial = _try_parse_json_dict(raw_acc)
                 if not parsed_partial:
                     continue
 
-                question = str(parsed_partial.get("question", ""))
-                if question.startswith(emitted_question) and len(question) > len(emitted_question):
-                    delta = question[len(emitted_question):]
-                    emitted_question = question
+                partial_question, partial_feedback, _ = _normalize_stage_outputs(
+                    flow_control=planned_flow,
+                    question=str(parsed_partial.get("question", "")),
+                    immediate_feedback=str(parsed_partial.get("immediate_feedback", "")),
+                    updated_history_summary=str(parsed_partial.get("updated_history_summary", "")),
+                    recent_history=request.history_data.recent_history,
+                )
+
+                if partial_question.startswith(emitted_question) and len(partial_question) > len(emitted_question):
+                    delta = partial_question[len(emitted_question):]
+                    emitted_question = partial_question
                     async for evt in _yield_text_in_chunks(delta, "question", chunk_size=12):
                         yield evt
 
-                immediate_feedback = str(parsed_partial.get("immediate_feedback", ""))
-                if immediate_feedback.startswith(emitted_feedback) and len(immediate_feedback) > len(emitted_feedback):
-                    delta = immediate_feedback[len(emitted_feedback):]
-                    emitted_feedback = immediate_feedback
+                if partial_feedback.startswith(emitted_feedback) and len(partial_feedback) > len(emitted_feedback):
+                    delta = partial_feedback[len(emitted_feedback):]
+                    emitted_feedback = partial_feedback
                     async for evt in _yield_text_in_chunks(delta, "immediate_feedback", chunk_size=12):
                         yield evt
 
@@ -541,9 +800,13 @@ async def followup_interview_stream(request: FollowupRequest, http_request: Requ
                 raise ValueError(f"LLM返回不是JSON对象: {type(parsed_raw).__name__}")
             parsed: dict = parsed_raw
 
-            question = str(parsed.get("question", ""))
-            immediate_feedback = str(parsed.get("immediate_feedback", ""))
-            updated_history_summary = str(parsed.get("updated_history_summary", ""))
+            question, immediate_feedback, updated_history_summary = _normalize_stage_outputs(
+                flow_control=planned_flow,
+                question=str(parsed.get("question", "")),
+                immediate_feedback=str(parsed.get("immediate_feedback", "")),
+                updated_history_summary=str(parsed.get("updated_history_summary", "")),
+                recent_history=request.history_data.recent_history,
+            )
 
             if question.startswith(emitted_question) and len(question) > len(emitted_question):
                 delta = question[len(emitted_question):]
@@ -554,25 +817,16 @@ async def followup_interview_stream(request: FollowupRequest, http_request: Requ
                 async for evt in _yield_text_in_chunks(delta, "immediate_feedback", chunk_size=12):
                     yield evt
 
-            flow_control_raw = parsed.get("flow_control", {"stage_transition": "continue", "target_stage": current_stage})
-            flow_control = _enforce_flow_control(
-                flow_control_raw,
-                recent_history=request.history_data.recent_history,
-                current_stage=current_stage,
-                round_id=request.round_id,
-                difficulty=request.interview_config.difficulty,
-            )
-
             response_meta = {
                 "session_id": request.session_id,
                 "round_id": request.round_id,
                 "updated_history_summary": updated_history_summary,
-                "flow_control": flow_control,
+                "flow_control": planned_flow,
             }
             logger.info("[Followup-Stream][ResponseMeta] %s", _to_log_json(response_meta))
 
             # 非展示字段一次性返回
-            yield _sse_event({'type': 'meta', 'session_id': request.session_id, 'round_id': request.round_id, 'updated_history_summary': updated_history_summary, 'flow_control': flow_control}, ensure_ascii=False)
+            yield _sse_event({'type': 'meta', 'session_id': request.session_id, 'round_id': request.round_id, 'updated_history_summary': updated_history_summary, 'flow_control': planned_flow}, ensure_ascii=False)
             yield _sse_event({'type': 'done'}, ensure_ascii=False)
 
         except Exception:

@@ -198,11 +198,22 @@ class LLMEngine:
             yield t
 
 
-    async def stream_following_question(self, req: FollowupRequest) -> AsyncGenerator[str, None]:
+    async def stream_following_question(
+        self,
+        req: FollowupRequest,
+        forced_current_stage: str | None = None,
+        forced_next_stage: str | None = None,
+        forced_stage_round_index: int | None = None,
+    ) -> AsyncGenerator[str, None]:
         """
         followup 场景专用：返回原始 token 流
         """
         current_stage, next_stage = self._derive_followup_stage_context(req)
+        if forced_current_stage in FOLLOWUP_STAGE_SEQUENCE:
+            current_stage = forced_current_stage
+        if forced_next_stage in FOLLOWUP_STAGE_SEQUENCE:
+            next_stage = forced_next_stage
+        stage_round_index = forced_stage_round_index if isinstance(forced_stage_round_index, int) and forced_stage_round_index > 0 else 1
         kwargs = {
             "round_id": req.round_id,
             "job_position": req.background.job_position,
@@ -215,6 +226,7 @@ class LLMEngine:
             "history_summary": req.history_data.history_summary,
             "current_stage": current_stage,
             "next_stage": next_stage,
+            "stage_round_index": stage_round_index,
             "recent_history": "\n".join([f"[{item.round_id}]: {item.assistant_content} {item.user_content} {item.flow_control.stage_transition} {item.flow_control.target_stage}" for item in req.history_data.recent_history])
         }
         async for t in self.stream_llm_raw_text(self.prompts["followup"], kwargs):
@@ -231,9 +243,20 @@ class LLMEngine:
         }
         return await self._invoke_llm(self.prompts["start"], kwargs)
 
-    async def generate_following_question(self, req: FollowupRequest) -> dict:
+    async def generate_following_question(
+        self,
+        req: FollowupRequest,
+        forced_current_stage: str | None = None,
+        forced_next_stage: str | None = None,
+        forced_stage_round_index: int | None = None,
+    ) -> dict:
     # generate_following_question kwargs 补 mode，并统一 recent_history 格式
         current_stage, next_stage = self._derive_followup_stage_context(req)
+        if forced_current_stage in FOLLOWUP_STAGE_SEQUENCE:
+            current_stage = forced_current_stage
+        if forced_next_stage in FOLLOWUP_STAGE_SEQUENCE:
+            next_stage = forced_next_stage
+        stage_round_index = forced_stage_round_index if isinstance(forced_stage_round_index, int) and forced_stage_round_index > 0 else 1
         kwargs = {
             "round_id": req.round_id,
             "job_position": req.background.job_position,
@@ -246,6 +269,7 @@ class LLMEngine:
             "history_summary": req.history_data.history_summary,
             "current_stage": current_stage,
             "next_stage": next_stage,
+            "stage_round_index": stage_round_index,
             "recent_history": "\n".join([
                 f"[{item.round_id}]: {item.assistant_content} | {item.user_content} | "
                 f"{item.flow_control.stage_transition} -> {item.flow_control.target_stage}"

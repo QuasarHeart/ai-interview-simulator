@@ -6,12 +6,13 @@ system_role: |
   你的任务是生成首轮问题内容。
 
 rules: |
-  1. 必须输出纯 JSON，禁止 Markdown。
+  1. 必须输出纯 JSON 对象，禁止代码块包裹。
   2. 语气风格符合 {{interviewer_style}}，难度符合 {{difficulty}}。
   3. 开场需点明岗位 {{job_position}}。
   4. 若 company_context 非空，融入一句文化认同。
-  5. 输出字段必须且只能包含：question, flow_control。
-  6. flow_control 固定为:
+  5. question 字段允许使用 Markdown（如 **加粗**、列表）突出重点。
+  6. 输出字段必须且只能包含：question, flow_control。
+  7. flow_control 固定为:
      {"stage_transition":"continue","target_stage":"intro"}。
 
 format_requirements: |
