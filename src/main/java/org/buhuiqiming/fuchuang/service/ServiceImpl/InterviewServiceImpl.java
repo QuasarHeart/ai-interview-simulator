@@ -20,6 +20,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -47,6 +49,8 @@ public class InterviewServiceImpl implements InterviewService {
     private final StringRedisTemplate stringRedisTemplate;
 
     private final int historyTurnsCount = 4;
+    private static final java.time.format.DateTimeFormatter TIME_FORMATTER =
+            java.time.format.DateTimeFormatter.ofPattern("yyyy年MM月dd日HH:mm");
 
     @Autowired
     public InterviewServiceImpl(InterviewRepository interviewRepository,
@@ -67,6 +71,12 @@ public class InterviewServiceImpl implements InterviewService {
     @Autowired
     @Lazy
     private InterviewService self;
+
+    @Override
+    public String getFormattedStartTime(String interviewId){
+        InterviewEntity interview = getInterviewOrElseThrow(interviewId);
+        return interview.getCreateTime().format(TIME_FORMATTER);
+    }
 
     @Override
     public InterviewEntity getInterviewOrElseThrow(String interviewId) {
@@ -206,13 +216,16 @@ public class InterviewServiceImpl implements InterviewService {
         SseEmitter emitter = new SseEmitter(0L);
         InterviewEntity interview = getInterviewOrElseThrow(interviewId);
 
+        if(!"RUNNING".equals(interview.getInterviewStatus())){
+            throw new ServiceException(409, "该面试会话为开始或已结束");
+        }
+
         int currentTurn = interview.getTurnsNumber();
         InterviewTurnsEntity interviewTurnsEntity = interviewTurnsRepository.findByInterviewIdAndTurnNumber(interviewId, currentTurn);
         interviewTurnsEntity.setAnswerText(answerText);
 
         Long currentUserId = UserContext.get();
         String resumeContent = userMapper.getVitaContent(currentUserId);
-
 
         interviewTurnsRepository.save(interviewTurnsEntity);
 
@@ -309,14 +322,16 @@ public class InterviewServiceImpl implements InterviewService {
                                                 emitter.send("[END]");
                                                 InterviewEntity endInterview = getInterviewOrElseThrow(interviewId);
                                                 endInterview.setInterviewStatus("WAITING_REPORT");
+                                                endInterview.setDuration(Duration.between(endInterview.getCreateTime(), LocalDateTime.now()));
                                                 interviewRepository.save(endInterview);
 
                                                 self.tryTriggerReportGeneration(interviewId);
                                             } else{
                                                 emitter.send("[DONE]");
                                             }
-                                            emitter.complete();
                                             saveTurnMetaData(interviewId, queBuffer.toString(), metaData);
+                                            emitter.complete();
+
                                             break;
 
                                         case "error":
@@ -434,7 +449,7 @@ public class InterviewServiceImpl implements InterviewService {
             interviewVO.setDifficulty(interview.getDifficulty());
             interviewVO.setMode(interview.getMode());
             interviewVO.setScore(interview.getTotalScore());
-            interviewVO.setDuration(interview.getDuration());
+            interviewVO.setDuration(interview.getDuration().getSeconds());
 
             resultList.add(interviewVO);
         }
@@ -443,7 +458,10 @@ public class InterviewServiceImpl implements InterviewService {
 
     @Override
     public List<InterviewTurnsVO> getInterviewTurns(String interviewId){
-        getInterviewOrElseThrow(interviewId);
+        InterviewEntity interview = getInterviewOrElseThrow(interviewId);
+        if(!Objects.equals(interview.getUserId(), UserContext.get())){
+            throw new ServiceException(500, "用户信息不匹配，请重试");
+        }
 
         List<InterviewTurnsEntity> turnsEntities = interviewTurnsRepository.findByInterviewIdOrderByTurnNumberAsc(interviewId);
 
@@ -561,18 +579,22 @@ public class InterviewServiceImpl implements InterviewService {
     @Override
     public void getInterviewReport(String interviewId){
         InterviewEntity interview = getInterviewOrElseThrow(interviewId);
-        interview.setInterviewStatus("REPORTING");
-        interviewRepository.save(interview);
+        if(!"REPORTING".equals(interview.getInterviewStatus())){
+            throw new ServiceException(409, "当前面试会话未满足获取报告状态条件");
+        }
         List<InterviewTurnsEntity> turnsEntities = interviewTurnsRepository.findByInterviewIdOrderByTurnNumberAsc(interviewId);
         String callbackUrl = "https://nas.feixingxr.com/api/v1/interviews/{interviewId}/report-callback";
 
         GenerateReportRequest requestBody = buildGenerateReportRequest(interview, turnsEntities, callbackUrl);
 
-        Result result = restClient.post()
+        Result response = restClient.post()
                 .uri("/report")
                 .body(requestBody)
                 .retrieve()
                 .body(Result.class);
+        if (response == null || !Integer.valueOf(200).equals(response.getCode())) {
+            throw new ServiceException(500, "评价服务异常: " + (response != null ? response.getMsg() : "无响应"));
+        }
     }
 
     @Override
@@ -607,7 +629,7 @@ public class InterviewServiceImpl implements InterviewService {
             log.info("面试报告回调处理完成并成功落库, interviewId: {}", interviewId);
 
         } catch (ServiceException se) {
-            throw se;
+            throw new ServiceException(se.getCode(), se.getMessage());
         } catch (Exception e) {
             log.error("处理面试报告回调时发生未知异常, interviewId: {}", interviewId, e);
             throw new ServiceException(500, "处理面试报告回调异常");
@@ -834,7 +856,13 @@ public class InterviewServiceImpl implements InterviewService {
         int updateStatus = interviewRepository.updateStatusIfWaiting(interviewId, "REPORTING", "WAITING_REPORT");
         if(updateStatus > 0){
             log.info("已经完成所有面试轮次评价，开始生成报告");
-            executorService.execute(() -> getInterviewReport(interviewId));
+            // 注册事务同步器：当前事务提交后，才去触发子线程
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    executorService.execute(() -> getInterviewReport(interviewId));
+                }
+            });
         } else{
             log.info("已经完成所有面试轮次评价，但是更新面试会话状态失败, {}", interviewId);
         }

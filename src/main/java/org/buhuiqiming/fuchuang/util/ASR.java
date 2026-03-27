@@ -6,8 +6,6 @@ import com.tencent.asr.model.FlashRecognitionRequest;
 import com.tencent.asr.model.FlashRecognitionResponse;
 import com.tencent.asr.service.FlashRecognizer;
 import com.tencentcloudapi.asr.v20190614.AsrClient;
-import com.tencentcloudapi.asr.v20190614.models.CreateRecTaskRequest;
-import com.tencentcloudapi.asr.v20190614.models.CreateRecTaskResponse;
 import com.tencentcloudapi.asr.v20190614.models.SentenceRecognitionRequest;
 import com.tencentcloudapi.asr.v20190614.models.SentenceRecognitionResponse;
 import com.tencentcloudapi.common.Credential;
@@ -101,33 +99,6 @@ public class ASR {
             }
             log.info("response: {}", resp);
             throw new ServiceException(500, "腾讯云服务异常，请稍后重试");
-        } catch (Exception e){
-            log.info("处理音频转文字流程出现错误：{}", e.getMessage());
-            throw new ServiceException(500, "服务器异常，请重试");
-        }
-    }
-
-    // ASR处理前端传递到后端的音频文件
-    public void getAudioToTextASR(MultipartFile audio){
-        if(audio == null || audio.getSize() == 0){
-            throw new ServiceException(400, "上传音频文件为空，请重试");
-        }
-        try{
-            // ToDo 将音频文件上传到云存储获得可公网访问的 URL
-            String audioUrl = null;
-            // ToDo 处理完毕后腾讯云回调时的 URL
-            String callBackUrl = null;
-
-            CreateRecTaskRequest req = new CreateRecTaskRequest();
-            req.setEngineModelType("16k_zh");
-            req.setChannelNum(1L);
-            req.setResTextFormat(0L);
-
-            req.setSourceType(0L);
-            req.setUrl(audioUrl);
-            req.setCallbackUrl(callBackUrl);
-
-            CreateRecTaskResponse resp = asrClient.CreateRecTask(req);
         } catch (Exception e){
             log.info("处理音频转文字流程出现错误：{}", e.getMessage());
             throw new ServiceException(500, "服务器异常，请重试");
