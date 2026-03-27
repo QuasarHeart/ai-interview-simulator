@@ -21,7 +21,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/login",              // 登录接口
                         "/code",// 发送验证码
                         "/users/resetPassword",// 重置密码
-                        "/cos/analyze"  //COS回调
+                        "/cos/analyze",  //COS回调
+                        "/api/v1/interviews/{interviewId}/report-callback"
                 );
     }
     @Override
