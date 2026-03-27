@@ -120,7 +120,7 @@ public class InterviewController {
      * 面试报告回调
      */
     @PostMapping("/{interviewId}/report-callback")
-    public void InterviewReportCallback(@PathVariable String interviewId, @RequestBody GenerateReportResponse response) throws Exception{
+    public void InterviewReportCallback(@PathVariable String interviewId, @RequestBody GenerateReportResponse response){
         if(response == null){
             log.info("返回报告为空");
             throw new ServiceException(500, "返回报告为空");
