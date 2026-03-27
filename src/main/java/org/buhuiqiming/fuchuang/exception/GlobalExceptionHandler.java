@@ -39,6 +39,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Result> ExceptionHandler(Exception e) {
         Result result =Result.error(500,"服务器异常");
+        log.error("服务器异常: ", e);
         return new ResponseEntity<>(result, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 }
