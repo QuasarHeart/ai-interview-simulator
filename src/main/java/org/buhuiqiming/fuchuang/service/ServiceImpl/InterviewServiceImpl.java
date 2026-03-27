@@ -444,12 +444,15 @@ public class InterviewServiceImpl implements InterviewService {
         List<InterviewVO> resultList = new ArrayList<>();
         for (InterviewEntity interview : interviews) {
             InterviewVO interviewVO = new InterviewVO();
-            interviewVO.setInterviewId(interview.getInterviewId());
+            String interviewId = interview.getInterviewId();
+            interviewVO.setInterviewId(interviewId);
             interviewVO.setJobRole(interview.getJobRole()); // 修正这里的潜在问题
             interviewVO.setDifficulty(interview.getDifficulty());
             interviewVO.setMode(interview.getMode());
             interviewVO.setScore(interview.getTotalScore());
-            interviewVO.setDuration(interview.getDuration().getSeconds());
+            // 还在进行中的面试会话持续时间返回为 0
+            interviewVO.setDuration(interview.getDuration() != null ? interview.getDuration().getSeconds() : 0L);
+            interviewVO.setStartTime(getFormattedStartTime(interviewId));
 
             resultList.add(interviewVO);
         }
