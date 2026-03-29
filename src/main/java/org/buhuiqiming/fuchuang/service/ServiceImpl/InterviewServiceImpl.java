@@ -321,6 +321,8 @@ public class InterviewServiceImpl implements InterviewService {
                                         case "done":
                                             if(metaData.containsKey("target_stage") && metaData.get("target_stage").toString().equals("end")){
                                                 emitter.send("[END]");
+                                                saveTurnMetaData(interviewId, queBuffer.toString(), metaData);
+
                                                 InterviewEntity endInterview = getInterviewOrElseThrow(interviewId);
                                                 endInterview.setInterviewStatus("WAITING_REPORT");
                                                 endInterview.setDuration(Duration.between(endInterview.getCreateTime(), LocalDateTime.now()));
@@ -329,8 +331,9 @@ public class InterviewServiceImpl implements InterviewService {
                                                 self.tryTriggerReportGeneration(interviewId);
                                             } else{
                                                 emitter.send("[DONE]");
+                                                saveTurnMetaData(interviewId, queBuffer.toString(), metaData);
                                             }
-                                            saveTurnMetaData(interviewId, queBuffer.toString(), metaData);
+
                                             emitter.complete();
 
                                             break;
@@ -371,6 +374,10 @@ public class InterviewServiceImpl implements InterviewService {
         if(metaData.containsKey("target_stage") && metaData.containsKey("stage_transition")){
             interviewTurns.setStageTransition(metaData.get("stage_transition").toString());
             interviewTurns.setTargetStage(metaData.get("target_stage").toString());
+            if("end".equals(metaData.get("stage_transition").toString())
+                    || "end".equals(metaData.get("target_stage").toString())){
+                interviewTurns.setEvaluationResult(null);
+            }
         }
 
         interviewRepository.save(interview);
@@ -450,6 +457,7 @@ public class InterviewServiceImpl implements InterviewService {
             interviewVO.setJobRole(interview.getJobRole()); // 修正这里的潜在问题
             interviewVO.setDifficulty(interview.getDifficulty());
             interviewVO.setMode(interview.getMode());
+            interviewVO.setInterviewStatus(interview.getInterviewStatus());
             interviewVO.setScore(interview.getTotalScore());
             // 还在进行中的面试会话持续时间返回为 0
             interviewVO.setDuration(interview.getDuration() != null ? interview.getDuration().getSeconds() : 0L);
@@ -492,14 +500,6 @@ public class InterviewServiceImpl implements InterviewService {
                 .difficulty(interview.getDifficulty())
                 .build();
 
-        var context = GenerateReportRequest.InterviewContext.builder()
-                .jobPosition(interview.getJobRole())
-                .jdSummary(interview.getJobInfo())
-                .totalRounds(interview.getTurnsNumber())
-                .interviewDurationSeconds(interview.getDuration() != null ? (int) interview.getDuration().getSeconds() : 0)
-                .resumeContent(userMapper.getVitaContent(UserContext.get()))
-                .build();
-
         List<GenerateReportRequest.RoundResult> roundResults = new ArrayList<>();
         for (InterviewTurnsEntity turn : turnsEntities) {
             TurnEvaluationResult eval = turn.getEvaluationResult();
@@ -534,6 +534,14 @@ public class InterviewServiceImpl implements InterviewService {
 
             roundResults.add(roundResult);
         }
+
+        var context = GenerateReportRequest.InterviewContext.builder()
+                .jobPosition(interview.getJobRole())
+                .jdSummary(interview.getJobInfo())
+                .totalRounds(roundResults.size())
+                .interviewDurationSeconds(interview.getDuration() != null ? (int) interview.getDuration().getSeconds() : 0)
+                .resumeContent(userMapper.getVitaContent(UserContext.get()))
+                .build();
 
         return GenerateReportRequest.builder()
                 .sessionId(interview.getInterviewId())
@@ -874,7 +882,7 @@ public class InterviewServiceImpl implements InterviewService {
     @Override
     public GrowthCurveVO getGrowthCurve(Long userId, String jobRole) {
         // 1. 获取按时间正序排列的面试记录
-        List<InterviewEntity> interviews = interviewRepository.findAllByUserIdAndJobRoleOrderByCreateTimeAsc(userId, jobRole);
+        List<InterviewEntity> interviews = interviewRepository.findAllByUserIdAndJobRoleAndInterviewStatusOrderByCreateTimeAsc(userId, jobRole, "REPORTED");
 
         // 2. 判空处理，交由 GlobalExceptionHandler 处理返回给前端的 Result.error
         if (interviews == null || interviews.isEmpty()) {
