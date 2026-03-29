@@ -166,5 +166,10 @@ public class InterviewController {
         GrowthCurveVO curve = interviewService.getGrowthCurve(currentUserId, jobRole);
         return Result.success(curve);
     }
+    @GetMapping("/test")
+    public Result test(@RequestParam String interviewId){
+        interviewService.getInterviewReport(interviewId);
+        return Result.success();
+    }
 
 }
