@@ -596,7 +596,7 @@ public class InterviewServiceImpl implements InterviewService {
         String callbackUrl = "https://nas.feixingxr.com/api/v1/interviews/{interviewId}/report-callback";
 
         GenerateReportRequest requestBody = buildGenerateReportRequest(interview, turnsEntities, callbackUrl);
-
+        log.debug("requestBody={}", requestBody);
         Result response = restClient.post()
                 .uri("/report")
                 .body(requestBody)
