@@ -17,6 +17,10 @@ public interface InterviewTurnsRepository extends JpaRepository<InterviewTurnsEn
     List<InterviewTurnsEntity> findByInterviewIdOrderByTurnNumberAsc(String interviewId);
 
     // 统计某个面试中有多少还未评价的轮次（以evaluationResult是否为空为准）
-    @Query("SELECT COUNT(t) FROM InterviewTurnsEntity t WHERE t.interviewId = :interviewId AND t.evaluationResult IS NULL")
+    @Query("SELECT COUNT(t) FROM InterviewTurnsEntity t " +
+            "WHERE t.interviewId = :interviewId " +
+            "AND t.evaluationResult IS NULL " +
+            "AND (t.targetStage IS NULL OR t.targetStage != 'end') " +
+            "AND (t.stageTransition IS NULL OR t.stageTransition != 'end')")
     int countUnEvaluatedTurns(@Param("interviewId") String interviewId);
 }
