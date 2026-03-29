@@ -540,7 +540,7 @@ public class InterviewServiceImpl implements InterviewService {
                 .jdSummary(interview.getJobInfo())
                 .totalRounds(roundResults.size())
                 .interviewDurationSeconds(interview.getDuration() != null ? (int) interview.getDuration().getSeconds() : 0)
-                .resumeContent(userMapper.getVitaContent(UserContext.get()))
+                .resumeContent(userMapper.getVitaContent(interview.getUserId()))
                 .build();
 
         return GenerateReportRequest.builder()
