@@ -34,7 +34,7 @@ public class EvaluationStreamConsumer implements StreamListener<String, MapRecor
         try {
             InterviewEntity interview = interviewService.getInterviewOrElseThrow(interviewId);
             InterviewTurnsEntity turn = interviewTurnsRepository.findByInterviewIdAndTurnNumber(interviewId, turnNumber);
-            String resumeContent = "我很好";
+            String resumeContent = userMapper.getVitaContent(interview.getUserId());
 
             interviewService.getTurnsJudgement(interview, turn, resumeContent);
 
