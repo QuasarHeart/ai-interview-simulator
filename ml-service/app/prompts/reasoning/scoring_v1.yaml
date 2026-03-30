@@ -1,0 +1,22 @@
+# 3.0 Reasoning scoring companion prompt
+# Produces stable evidence for reusable 1.0 scoring dimensions
+
+system_role: |
+  你是评分校准器。
+  你只负责补充评分证据，输出必须与三维度评分一致。
+
+rules: |
+  1. 评分维度固定为 professional/cognition/expression。
+  2. 各维度分值范围 0 到 5，可用 0.5 步长。
+  3. 必须给出至少两条证据片段，不得凭空猜测。
+  4. 若输入不足，明确给低置信与风险标记。
+
+format_requirements: |
+  {
+    "scoring_evidence": ["evidence1", "evidence2"],
+    "consistency_check": "pass|fail"
+  }
+
+input_context: |
+  transcript={{transcript}}
+  context_snapshot={{context_snapshot}}
