@@ -14,6 +14,11 @@ rules: |
   6. 输出字段必须且只能包含：question, flow_control。
   7. flow_control 固定为:
      {"stage_transition":"continue","target_stage":"intro"}。
+  8.question 内容必须包含两部分：
+     - 面试官开场白：简短欢迎语，介绍面试流程，点明岗位。
+     - 第一题：结合 jd_summary 和 resume_content，设计一个难度适中的问题作为热身，避免过于简单或过于深入技术细节。
+     -字数控制：开场白 18-60 字，第一题 12-40 字。
+     -禁止连环发问，最多抛出一个问题，且不得包含子问题。
 
 format_requirements: |
   {

@@ -6,6 +6,7 @@ import json
 import asyncio
 import logging
 import os
+import re
 import json_repair
 import httpx
 from contextlib import asynccontextmanager
@@ -87,6 +88,8 @@ REPORT_CALLBACK_URL_TEMPLATE = os.getenv(
     "REPORT_CALLBACK_URL_TEMPLATE",
     "https://nas.feixingxr.com/api/v1/interviews/{interviewId}/report-callback",
 )
+REPORT_LOG_CALLBACK_BODY = os.getenv("REPORT_LOG_CALLBACK_BODY", "true").strip().lower() in {"1", "true", "yes", "on"}
+REPORT_LOG_CALLBACK_BODY_MAX_CHARS = int(os.getenv("REPORT_LOG_CALLBACK_BODY_MAX_CHARS", "20000"))
 
 
 @asynccontextmanager
@@ -119,6 +122,13 @@ def _to_log_json(data: Any) -> str:
         return json.dumps(data, ensure_ascii=False, default=str)
     except Exception as exc:
         return f"<json-serialize-failed: {exc}>"
+
+
+def _serialize_callback_payload_for_log(payload: dict) -> str:
+    text = _to_log_json(payload)
+    if REPORT_LOG_CALLBACK_BODY_MAX_CHARS > 0 and len(text) > REPORT_LOG_CALLBACK_BODY_MAX_CHARS:
+        return f"{text[:REPORT_LOG_CALLBACK_BODY_MAX_CHARS]}...(truncated)"
+    return text
 
 
 def _try_parse_json_dict(raw: str) -> dict | None:
@@ -289,6 +299,13 @@ def _is_no_more_questions_intent(answer: str) -> bool:
     exact_phrases = {
         "没问题了",
         "没有问题了",
+        "没有了",
+        "没了",
+        "没啥了",
+        "没什么了",
+        "暂时没有了",
+        "暂时没了",
+        "先没有了",
         "没有其他问题",
         "没其他问题",
         "没有更多问题",
@@ -317,6 +334,16 @@ def _is_no_more_questions_intent(answer: str) -> bool:
             suffix = compact[len(phrase):].strip("，。！？,.!;；:：")
             if suffix in polite_suffixes:
                 return True
+
+    # 受限正则：仅覆盖非常短且明确“没有更多问题”的表达，避免误伤正常句子。
+    # 例如："没"、"没有"、"没了"、"没有了"、"木有"、"木有了"、"无"、"无了"。
+    if len(compact) <= 4 and re.fullmatch(r"(?:没|没有|木有|无)(?:了)?", compact):
+        return True
+
+    # 允许附带轻量语气词（如“没啦/没有呀”），但仍要求整体很短。
+    if len(compact) <= 6 and re.fullmatch(r"(?:没|没有|木有|无)(?:了)?(?:啦|呀|哈|哦|喔)?", compact):
+        return True
+
     return False
 
 
@@ -746,9 +773,9 @@ async def followup_interview_stream(request: FollowupRequest, http_request: Requ
         planned_flow = {"stage_transition": "end", "target_stage": "end"}
 
         async def terminal_event_gen():
-            async for evt in _yield_text_in_chunks(question, "question", chunk_size=12):
-                yield evt
             async for evt in _yield_text_in_chunks(immediate_feedback, "immediate_feedback", chunk_size=12):
+                yield evt
+            async for evt in _yield_text_in_chunks(question, "question", chunk_size=12):
                 yield evt
             yield _sse_event({'type': 'meta', 'session_id': request.session_id, 'round_id': request.round_id, 'updated_history_summary': updated_history_summary, 'flow_control': planned_flow}, ensure_ascii=False)
             yield _sse_event({'type': 'done'}, ensure_ascii=False)
@@ -783,16 +810,16 @@ async def followup_interview_stream(request: FollowupRequest, http_request: Requ
                     recent_history=request.history_data.recent_history,
                 )
 
-                if partial_question.startswith(emitted_question) and len(partial_question) > len(emitted_question):
-                    delta = partial_question[len(emitted_question):]
-                    emitted_question = partial_question
-                    async for evt in _yield_text_in_chunks(delta, "question", chunk_size=12):
-                        yield evt
-
                 if partial_feedback.startswith(emitted_feedback) and len(partial_feedback) > len(emitted_feedback):
                     delta = partial_feedback[len(emitted_feedback):]
                     emitted_feedback = partial_feedback
                     async for evt in _yield_text_in_chunks(delta, "immediate_feedback", chunk_size=12):
+                        yield evt
+
+                if partial_question.startswith(emitted_question) and len(partial_question) > len(emitted_question):
+                    delta = partial_question[len(emitted_question):]
+                    emitted_question = partial_question
+                    async for evt in _yield_text_in_chunks(delta, "question", chunk_size=12):
                         yield evt
 
             parsed_raw = json_repair.loads(raw_acc)
@@ -808,13 +835,13 @@ async def followup_interview_stream(request: FollowupRequest, http_request: Requ
                 recent_history=request.history_data.recent_history,
             )
 
-            if question.startswith(emitted_question) and len(question) > len(emitted_question):
-                delta = question[len(emitted_question):]
-                async for evt in _yield_text_in_chunks(delta, "question", chunk_size=12):
-                    yield evt
             if immediate_feedback.startswith(emitted_feedback) and len(immediate_feedback) > len(emitted_feedback):
                 delta = immediate_feedback[len(emitted_feedback):]
                 async for evt in _yield_text_in_chunks(delta, "immediate_feedback", chunk_size=12):
+                    yield evt
+            if question.startswith(emitted_question) and len(question) > len(emitted_question):
+                delta = question[len(emitted_question):]
+                async for evt in _yield_text_in_chunks(delta, "question", chunk_size=12):
                     yield evt
 
             response_meta = {
@@ -914,16 +941,14 @@ async def _async_generate_report_and_callback(engine: LLMEngine, request: Report
     logger.info("[Report-Task] callback_url=%s interviewId=%s", callback_url, interview_id)
     try:
         report_payload = await engine.generate_overall_report(request)
-        callback_payload = {
-            "code": 200,
-            "message": "report_generated",
-            "data": {
-                "interviewId": interview_id,
-                "session_id": request.session_id,
-                "status": "completed",
-                "report": report_payload,
-            },
-        }
+        callback_payload = report_payload
+        if REPORT_LOG_CALLBACK_BODY:
+            logger.info(
+                "[Report-Task] callback request body url=%s interviewId=%s body=%s",
+                callback_url,
+                interview_id,
+                _serialize_callback_payload_for_log(callback_payload),
+            )
         await _post_callback_with_retry(callback_url, callback_payload)
         logger.info("[Report-Task] done session=%s", request.session_id)
     except Exception as exc:
@@ -939,6 +964,13 @@ async def _async_generate_report_and_callback(engine: LLMEngine, request: Report
             },
         }
         try:
+            if REPORT_LOG_CALLBACK_BODY:
+                logger.info(
+                    "[Report-Task] failed callback request body url=%s interviewId=%s body=%s",
+                    callback_url,
+                    interview_id,
+                    _serialize_callback_payload_for_log(failed_payload),
+                )
             await _post_callback_with_retry(callback_url, failed_payload)
         except Exception:
             logger.exception("[Report-Task] failed-callback send failed session=%s", request.session_id)
