@@ -507,14 +507,12 @@ public class InterviewServiceImpl implements InterviewService {
                 continue;
             }
 
-            GenerateReportRequest.DimensionScores scores = null;
-            if (eval.getDimensionScores() != null) {
-                scores = GenerateReportRequest.DimensionScores.builder()
-                        .professional(eval.getDimensionScores().getProfessional())
-                        .cognition(eval.getDimensionScores().getCognition())
-                        .expression(eval.getDimensionScores().getExpression())
-                        .build();
-            }
+            GenerateReportRequest.DimensionScores scores = GenerateReportRequest.DimensionScores.builder()
+                    .professional(eval.getDimensionScores().getProfessional())
+                    .cognition(eval.getDimensionScores().getCognition())
+                    .expression(eval.getDimensionScores().getExpression())
+                    .build();
+
 
             GenerateReportRequest.DimensionDetails details = GenerateReportRequest.DimensionDetails.builder()
                     .professional(buildProfessional(eval.getProfessional()))
