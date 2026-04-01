@@ -5,6 +5,8 @@ import io.livekit.server.RoomJoin;
 import io.livekit.server.RoomName;
 import io.livekit.server.RoomServiceClient;
 import livekit.LivekitModels.Room;
+import org.buhuiqiming.fuchuang.service.LiveKitService;
+import org.buhuiqiming.fuchuang.util.UserContext;
 import org.springframework.stereotype.Service;
 import retrofit2.Response;
 
@@ -13,7 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Service
-public class LiveKitManagerImpl {
+public class LiveKitServiceImpl implements LiveKitService {
 
     private final String host = System.getenv("LIVEKIT_URL");
     private final String apiKey = System.getenv("LIVEKIT_API_KEY");
@@ -22,7 +24,8 @@ public class LiveKitManagerImpl {
     // 创建 RoomServiceClient 实例
     private final RoomServiceClient client = RoomServiceClient.createClient(host, apiKey, apiSecret);
 
-    public Map<String, String> startAutoInterview(String userId, String interviewId) throws IOException {
+    @Override
+    public Map<String, String> startAutoInterview(String interviewId) throws IOException {
         String roomName = "interview_" + interviewId;
 
         // 1. 创建房间（这是给 Python Worker 发送的信号）
@@ -40,8 +43,8 @@ public class LiveKitManagerImpl {
         // 3. 仅为前端面试者生成 Access Token
         // 0.12.1 采用了更显式的 addGrants 语法
         AccessToken token = new AccessToken(apiKey, apiSecret);
-        token.setIdentity("candidate_" + userId);
-        token.setName("面试者-" + userId);
+        token.setIdentity("candidate_" + UserContext.get().toString());
+        token.setName("面试者-" + UserContext.get().toString());
 
         // 赋予加入权限和房间名
         token.addGrants(new RoomJoin(true), new RoomName(roomName));
@@ -49,7 +52,7 @@ public class LiveKitManagerImpl {
         Map<String, String> data = new HashMap<>();
         data.put("token", token.toJwt());
         data.put("room", roomName);
-        data.put("url", "ws://localhost:7880");
+        data.put("url", "wss://vm.feixingxr.com");
         return data;
     }
 }

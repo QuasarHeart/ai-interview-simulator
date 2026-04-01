@@ -5,12 +5,10 @@ import org.buhuiqiming.fuchuang.VO.GrowthCurveVO;
 import org.buhuiqiming.fuchuang.VO.InterviewTurnsVO;
 import org.buhuiqiming.fuchuang.VO.InterviewVO;
 import org.buhuiqiming.fuchuang.VO.ReportResultVO;
-import org.buhuiqiming.fuchuang.dto.CreateInterviewDTO;
-import org.buhuiqiming.fuchuang.dto.GenerateReportResponse;
-import org.buhuiqiming.fuchuang.dto.Result;
-import org.buhuiqiming.fuchuang.dto.SubmitAnswerTextDTO;
+import org.buhuiqiming.fuchuang.dto.*;
 import org.buhuiqiming.fuchuang.exception.ServiceException;
 import org.buhuiqiming.fuchuang.service.InterviewService;
+import org.buhuiqiming.fuchuang.service.LiveKitService;
 import org.buhuiqiming.fuchuang.util.ASR;
 import org.buhuiqiming.fuchuang.util.UserContext;
 import org.springframework.http.MediaType;
@@ -18,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,23 +31,24 @@ public class InterviewController {
 
     private final InterviewService interviewService;
     private final ASR asr;
+    private final LiveKitService liveKitService;
 
     public InterviewController(InterviewService interviewService,
-                               ASR asr) {
+                               ASR asr, LiveKitService liveKitService) {
         this.interviewService = interviewService;
         this.asr = asr;
+        this.liveKitService = liveKitService;
     }
 
     /**
      * 创建面试会话
      */
     @PostMapping
-    public Result createInterview(@ModelAttribute CreateInterviewDTO dto){
+    public Result createInterview(@ModelAttribute CreateInterviewDTO dto)throws IOException {
 
         // 面试会话特征码 interviewId 的确定
         // 创建初步的数据库interview实体类记录
         String interviewId = interviewService.createInterview(dto);
-        String firstQue = interviewService.startInterview(interviewId);
         String formattedTime = interviewService.getFormattedStartTime(interviewId);
 
         // 具体返回结果构造
@@ -56,8 +56,16 @@ public class InterviewController {
         data.put("interviewId", interviewId);
         data.put("startTime", formattedTime);
         data.put("status", "RUNNING");
-        data.put("question", firstQue);
-
+        if(!dto.getMode().equals("LIVE")) {
+            String firstQue = interviewService.startInterview(interviewId);
+            data.put("question", firstQue);
+        }
+        else{
+            Map<String, String> liveKitData = liveKitService.startAutoInterview(interviewId);
+            data.put("room", liveKitData.get("room"));
+            data.put("token", liveKitData.get("token"));
+            data.put("url", liveKitData.get("url"));
+        }
         return Result.success(data);
     }
 
