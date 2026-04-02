@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
-@RestController
+@RestController("/api/livekit")
 public class LiveKitController {
     private  final LiveKitService liveKitService;
     private final WebhookReceiver webhookReceiver;
