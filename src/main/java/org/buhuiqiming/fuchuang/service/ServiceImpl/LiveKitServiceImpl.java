@@ -1,21 +1,15 @@
 package org.buhuiqiming.fuchuang.service.ServiceImpl;
 
-import io.livekit.server.AccessToken;
-import io.livekit.server.RoomJoin;
-import io.livekit.server.RoomName;
-import io.livekit.server.RoomServiceClient;
-import livekit.LivekitModels.Room;
+import io.livekit.server.*;
 import lombok.extern.slf4j.Slf4j;
 import org.buhuiqiming.fuchuang.dto.InterviewMetadata;
 import org.buhuiqiming.fuchuang.entity.jpa.InterviewEntity;
 import org.buhuiqiming.fuchuang.service.InterviewService;
 import org.buhuiqiming.fuchuang.service.LiveKitService;
-import org.buhuiqiming.fuchuang.util.UserContext;
 import org.springframework.stereotype.Service;
 import retrofit2.Response;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -35,37 +29,66 @@ public class LiveKitServiceImpl implements LiveKitService {
 
     @Override
     public Map<String, String> startAutoInterview(String interviewId) throws IOException {
-        String roomName = "interview_" + interviewId;
+        // 1. 准备业务数据
+        String roomName = "room_" + interviewId ;
+        InterviewEntity interview = interviewService.getInterviewOrElseThrow(interviewId);
+        String agentName = "ai-interview-3";
 
-        // 1. 创建房间（这是给 Python Worker 发送的信号）
-        // 0.12.1 推荐直接 execute() 获取同步响应
-        Response<Room> response = client.createRoom(roomName).execute();
-        if (!response.isSuccessful()) {
-            throw new RuntimeException("无法创建房间: " + response.errorBody().string());
+
+        String livekitUrl = "wss://vm.feixingxr.com";
+        // 使用蛇形命名的 Metadata 对象
+        InterviewMetadata metadataObj = new InterviewMetadata(interview);
+        String metadataJson = metadataObj.toJson();
+
+        RoomServiceClient roomClient =
+                RoomServiceClient.createClient(
+                        livekitUrl.replace("wss://", "https://"),
+                        apiKey,
+                        apiSecret
+                );
+
+        roomClient.createRoom(
+                roomName,          // name
+                300,               // emptyTimeout
+                5,                 // maxParticipants
+                null,              // nodeId
+                metadataJson,      // metadata
+                null,              // minPlayoutDelay
+                null,              // maxPlayoutDelay
+                null,              // syncStreams
+                null               // departureTimeout
+        ).execute();
+
+
+
+        AgentDispatchServiceClient dispatchClient =
+                AgentDispatchServiceClient.createClient(
+                        livekitUrl.replace("wss://", "https://"),
+                        apiKey,
+                        apiSecret
+                );
+
+        Response<?> dispatchResp =
+                dispatchClient
+                        .createDispatch(roomName, agentName, metadataJson)
+                        .execute();
+
+        if (!dispatchResp.isSuccessful()) {
+            throw new RuntimeException("Dispatch failed: " + dispatchResp.errorBody());
         }
 
-        // 2. 存入元数据 (关键扩展点)
-        // Python Worker 加入后会自动读取这段 JSON，从而知道面试题目
 
-        InterviewEntity interview = interviewService.getInterviewOrElseThrow(interviewId);
-        InterviewMetadata Metadata = new InterviewMetadata(interview);
-        String metadata = Metadata.toJson();
-        log.info("InterviewMetadata: {}" ,metadata);
-        client.updateRoomMetadata(roomName, metadata).execute();
-
-        // 3. 仅为前端面试者生成 Access Token
-        // 0.12.1 采用了更显式的 addGrants 语法
         AccessToken token = new AccessToken(apiKey, apiSecret);
-        token.setIdentity("candidate_" + UserContext.get().toString());
-        token.setName("面试者-" + UserContext.get().toString());
-
-        // 赋予加入权限和房间名
-        token.addGrants(new RoomJoin(true), new RoomName(roomName));
-
-        Map<String, String> data = new HashMap<>();
-        data.put("token", token.toJwt());
-        data.put("room", roomName);
-        data.put("url", "wss://vm.feixingxr.com");
-        return data;
+        token.setIdentity("candidate_" + interviewId);
+        token.setName("Candidate-" + interviewId);
+        token.addGrants(
+                new RoomJoin(true),
+                new RoomName(roomName)
+        );
+        return Map.of(
+                "token", token.toJwt(),
+                "room", roomName,
+                "url", "wss://vm.feixingxr.com"
+        );
     }
 }
