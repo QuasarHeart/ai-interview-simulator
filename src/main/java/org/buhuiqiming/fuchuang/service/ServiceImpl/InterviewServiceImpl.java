@@ -101,7 +101,7 @@ public class InterviewServiceImpl implements InterviewService {
     public String createInterview(CreateInterviewDTO dto) {
         System.out.println("createInterview");
         String interviewId = UUID.randomUUID().toString().replace("-", "");
-        InterviewEntity interview = new InterviewEntity(interviewId, dto.getJobRole(), dto.getDifficulty(), dto.getMode(), "CREATED", dto.getJobInfo(), dto.getInterviewerStyle());
+        InterviewEntity interview = new InterviewEntity(interviewId, dto.getJobRole(), dto.getDifficulty(), dto.getMode(), "CREATED", dto.getJobInfo(), dto.getInterviewerStyle(), dto.getCompanyContext());
         interview.setUserId(UserContext.get());
         interviewRepository.save(interview);
         System.out.println("create interview success");
@@ -125,7 +125,7 @@ public class InterviewServiceImpl implements InterviewService {
                         .mode(interview.getMode())
                         .analyzeEmotion(false)
                         .interviewerStyle(interview.getInterviewerStyle())
-                        .companyContext("字节")// ToDo: 公司背景
+                        .companyContext(interview.getCompanyContext())
                         .difficulty(interview.getDifficulty())
                         .build())
                 .flowControl(InterviewStartRequest.FlowControl.builder()

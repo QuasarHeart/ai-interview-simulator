@@ -5,6 +5,10 @@ import io.livekit.server.RoomJoin;
 import io.livekit.server.RoomName;
 import io.livekit.server.RoomServiceClient;
 import livekit.LivekitModels.Room;
+import lombok.extern.slf4j.Slf4j;
+import org.buhuiqiming.fuchuang.dto.InterviewMetadata;
+import org.buhuiqiming.fuchuang.entity.jpa.InterviewEntity;
+import org.buhuiqiming.fuchuang.service.InterviewService;
 import org.buhuiqiming.fuchuang.service.LiveKitService;
 import org.buhuiqiming.fuchuang.util.UserContext;
 import org.springframework.stereotype.Service;
@@ -14,12 +18,17 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @Service
 public class LiveKitServiceImpl implements LiveKitService {
 
     private final String host = System.getenv("LIVEKIT_URL");
     private final String apiKey = System.getenv("LIVEKIT_API_KEY");
     private final String apiSecret = System.getenv("LIVEKIT_API_SECRET");
+    private final InterviewService interviewService;
+    public LiveKitServiceImpl(InterviewService interviewService) {
+        this.interviewService = interviewService;
+    }
 
     // 创建 RoomServiceClient 实例
     private final RoomServiceClient client = RoomServiceClient.createClient(host, apiKey, apiSecret);
@@ -37,7 +46,11 @@ public class LiveKitServiceImpl implements LiveKitService {
 
         // 2. 存入元数据 (关键扩展点)
         // Python Worker 加入后会自动读取这段 JSON，从而知道面试题目
-        String metadata = "{\"candidate_name\":\"张三\", \"level\":\"P6\", \"questions\":[\"Java锁机制\", \"LiveKit原理\"]}";
+
+        InterviewEntity interview = interviewService.getInterviewOrElseThrow(interviewId);
+        InterviewMetadata Metadata = new InterviewMetadata(interview);
+        String metadata = Metadata.toJson();
+        log.info("InterviewMetadata: {}" ,metadata);
         client.updateRoomMetadata(roomName, metadata).execute();
 
         // 3. 仅为前端面试者生成 Access Token
