@@ -94,6 +94,10 @@ public class InterviewEntity {
     @Column
     private Duration duration;
 
+    // 面试公司
+    @Column
+    private String companyContext;
+
     // 最终用于展示的评分记录
     // 评分维度：指定在数据库中以 JSON 格式存储
     @JdbcTypeCode(SqlTypes.JSON)
@@ -138,7 +142,7 @@ public class InterviewEntity {
 
     public InterviewEntity() {}
 
-    public InterviewEntity(String interviewId, String jobRole, String difficulty, String mode, String interviewStatus, String jobInfo, String interviewerStyle) {
+    public InterviewEntity(String interviewId, String jobRole, String difficulty, String mode, String interviewStatus, String jobInfo, String interviewerStyle, String companyContext) {
         this.interviewId = interviewId;
         this.jobRole = jobRole;
         this.difficulty = difficulty;
@@ -147,6 +151,7 @@ public class InterviewEntity {
         this.jobInfo = jobInfo;
         this.interviewerStyle = interviewerStyle;
         this.turnsNumber = 0;
+        this.companyContext = companyContext;
     }
 
 }

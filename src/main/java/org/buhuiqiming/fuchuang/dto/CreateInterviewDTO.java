@@ -1,7 +1,6 @@
 package org.buhuiqiming.fuchuang.dto;
 
 import lombok.Data;
-import org.springframework.web.multipart.MultipartFile;
 
 @Data
 public class CreateInterviewDTO {
@@ -20,20 +19,6 @@ public class CreateInterviewDTO {
     // 面试官风格
     private String interviewerStyle;
 
-    // 简历文件(pdf/doc/docx) -- 可选
-    private MultipartFile resumeFile;
-
-    @Override
-    public String toString() {
-        if(resumeFile != null){
-            return "jobRole=" + jobRole
-                    + ", difficulty=" + difficulty
-                    + ", mode=" + mode
-                    + ", 有简历文件";
-        }
-        return "jobRole=" + jobRole
-                + ", difficulty=" + difficulty
-                + ", mode=" + mode
-                + ", 无简历文件";
-    }
+    // 公司简述
+    private String companyContext;
 }
