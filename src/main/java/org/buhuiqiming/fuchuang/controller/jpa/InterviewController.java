@@ -56,7 +56,7 @@ public class InterviewController {
         data.put("interviewId", interviewId);
         data.put("startTime", formattedTime);
         data.put("status", "RUNNING");
-        if(!dto.getMode().equals("LIVE")) {
+        if(dto.getMode().equals("text")) {
             String firstQue = interviewService.startInterview(interviewId);
             data.put("question", firstQue);
         }
