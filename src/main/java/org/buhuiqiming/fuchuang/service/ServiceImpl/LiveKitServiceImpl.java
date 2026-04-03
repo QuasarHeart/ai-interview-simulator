@@ -42,7 +42,7 @@ public class LiveKitServiceImpl implements LiveKitService {
 
         RoomServiceClient roomClient =
                 RoomServiceClient.createClient(
-                        livekitUrl.replace("wss://", "https://"),
+                        host,
                         apiKey,
                         apiSecret
                 );
@@ -63,7 +63,7 @@ public class LiveKitServiceImpl implements LiveKitService {
 
         AgentDispatchServiceClient dispatchClient =
                 AgentDispatchServiceClient.createClient(
-                        livekitUrl.replace("wss://", "https://"),
+                        host,
                         apiKey,
                         apiSecret
                 );
@@ -88,7 +88,7 @@ public class LiveKitServiceImpl implements LiveKitService {
         return Map.of(
                 "token", token.toJwt(),
                 "room", roomName,
-                "url", host
+                "url", host.replace("https://", "wss://")
         );
     }
 }
