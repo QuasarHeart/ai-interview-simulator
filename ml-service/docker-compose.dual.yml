@@ -1,0 +1,36 @@
+services:
+  interview-api-v1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ai-interview-api-v1:latest
+    container_name: interview-api-v1
+    env_file:
+      - .env.ml-service
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  interview-agent-v2:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent2
+    image: ai-interview-agent-v2:latest
+    container_name: interview-agent-v2
+    env_file:
+      - .env.ml-service
+    environment:
+      # Force 2.0 report bridge to hit 1.0 service through Docker network.
+      REPORT_API_URL: http://interview-api-v1:8000/api/v1/interview/report
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      interview-api-v1:
+        condition: service_healthy
+    restart: unless-stopped

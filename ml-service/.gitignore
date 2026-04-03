@@ -1,0 +1,23 @@
+.env.ml-service
+
+# Python caches
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editor and local tooling
+.vscode/
+
+# Generated outputs
+outputs/
+
+# Offline packaging artifacts
+docker/offline/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
