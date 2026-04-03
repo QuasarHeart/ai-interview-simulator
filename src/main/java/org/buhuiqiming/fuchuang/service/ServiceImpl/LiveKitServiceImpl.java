@@ -35,7 +35,7 @@ public class LiveKitServiceImpl implements LiveKitService {
         String agentName = "ai-interview-3";
 
 
-        String livekitUrl = "wss://vm.feixingxr.com";
+        String livekitUrl = host;
         // 使用蛇形命名的 Metadata 对象
         InterviewMetadata metadataObj = new InterviewMetadata(interview);
         String metadataJson = metadataObj.toJson();
