@@ -46,7 +46,7 @@ public class LiveKitServiceImpl implements LiveKitService {
                         apiKey,
                         apiSecret
                 );
-
+        log.info("metadata:{}",metadataJson);
         roomClient.createRoom(
                 roomName,          // name
                 300,               // emptyTimeout
@@ -88,7 +88,7 @@ public class LiveKitServiceImpl implements LiveKitService {
         return Map.of(
                 "token", token.toJwt(),
                 "room", roomName,
-                "url", "wss://vm.feixingxr.com"
+                "url", host
         );
     }
 }
