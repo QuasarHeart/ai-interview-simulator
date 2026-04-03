@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# Runtime libs needed by livekit/sounddevice stack in slim images.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libportaudio2 \
+    libasound2 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY app/requirements.agent2.txt /app/requirements.agent2.txt
+RUN pip install -r /app/requirements.agent2.txt
+
+COPY app /app/app
+
+# LiveKit agent worker (non-HTTP service). Use 'dev' for local debug if needed.
+CMD ["python", "app/agent.py", "start"]
