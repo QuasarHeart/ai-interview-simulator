@@ -40,6 +40,7 @@ public class LiveKitServiceImpl implements LiveKitService {
         InterviewMetadata metadataObj = new InterviewMetadata(interview);
         String metadataJson = metadataObj.toJson();
 
+        log.info("metadata:{}",metadataJson);
         RoomServiceClient roomClient =
                 RoomServiceClient.createClient(
                         host,
@@ -58,8 +59,6 @@ public class LiveKitServiceImpl implements LiveKitService {
                 null,              // syncStreams
                 null               // departureTimeout
         ).execute();
-
-
 
         AgentDispatchServiceClient dispatchClient =
                 AgentDispatchServiceClient.createClient(
