@@ -2,9 +2,11 @@ FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /app
+ENV PYTHONPATH=/app
 
 # Runtime libs needed by livekit/sounddevice stack in slim images.
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -14,9 +16,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY app/requirements.agent2.txt /app/requirements.agent2.txt
-RUN pip install -r /app/requirements.agent2.txt
+RUN pip install --no-cache-dir --no-compile -r /app/requirements.agent2.txt
 
 COPY app /app/app
 
-# LiveKit agent worker (non-HTTP service). Use 'dev' for local debug if needed.
-CMD ["python", "app/agent.py", "start"]
+# LiveKit agent worker (non-HTTP service). Run as a module so the app package resolves correctly.
+CMD ["python", "-m", "app.agent", "start"]
