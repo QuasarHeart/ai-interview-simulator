@@ -10,7 +10,6 @@ class InterviewConfig(BaseModel):
     interviewer_style: Literal["standard", "friendly", "aggressive", "expert"]
     difficulty: Literal["easy", "medium", "hard"]
     company_context: Optional[str] = None
-    analyze_emotion: Optional[bool] = False
 
 class FlowControl(BaseModel):
     # 严格限制只能传这几个控制指令

@@ -1,5 +1,6 @@
 import os
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 from livekit.agents.evals import (
@@ -11,31 +12,19 @@ from livekit.agents.evals import (
     relevancy_judge,
     safety_judge,
 )
-from livekit.agents.llm import ChatContext
+from livekit.agents.llm import ChatContext, ChatRole
 
 
 def _build_chat_ctx(turns: list[tuple[str, str]]) -> ChatContext:
     chat_ctx = ChatContext()
     for role, content in turns:
-        chat_ctx.add_message(role=role, content=content)
+        chat_ctx.add_message(role=cast(ChatRole, role), content=content)
     return chat_ctx
 
 
 def _build_online_eval_llm():
-    backend = os.getenv("LIVEKIT_EVAL_BACKEND", "livekit_inference").strip().lower()
-    model = os.getenv("LIVEKIT_EVAL_MODEL", "openai/gpt-4o-mini")
-
-    if backend == "openai_compat":
-        from livekit.plugins import openai as lk_openai
-
-        api_key = os.getenv("LIVEKIT_EVAL_API_KEY") or os.getenv("DASHSCOPE_API_KEY") or os.getenv("OPENAI_API_KEY")
-        base_url = os.getenv("LIVEKIT_EVAL_BASE_URL") or os.getenv("DASHSCOPE_BASE_URL")
-        plugin_model = os.getenv("LIVEKIT_EVAL_MODEL", os.getenv("REASONING_MODEL", "qwen3-max-preview"))
-        if not api_key:
-            raise ValueError("openai_compat backend requires LIVEKIT_EVAL_API_KEY or DASHSCOPE_API_KEY/OPENAI_API_KEY")
-        return lk_openai.LLM(model=plugin_model, api_key=api_key, base_url=base_url)
-
-    # Default official path: model string resolved by LiveKit Inference gateway.
+    _ = os.getenv("LIVEKIT_EVAL_BACKEND", "livekit_inference").strip().lower()
+    model = os.getenv("LIVEKIT_EVAL_MODEL", "gemini-2.5-flash-native-audio-preview-12-2025")
     return model
 
 

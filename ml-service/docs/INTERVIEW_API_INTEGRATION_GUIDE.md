@@ -46,8 +46,7 @@ curl -X POST 'http://127.0.0.1:8000/api/v1/interview/start' \
       "mode":"text",
       "interviewer_style":"standard",
       "difficulty":"medium",
-      "company_context":"互联网ToB场景",
-      "analyze_emotion":false
+      "company_context":"互联网ToB场景"
     },
     "flow_control":{
       "stage_transition":"continue",
@@ -129,8 +128,7 @@ curl -N -X POST 'http://127.0.0.1:8000/api/v1/interview/start/stream' \
     "mode": "text",
     "interviewer_style": "standard",
     "difficulty": "medium",
-    "company_context": "互联网ToB场景",
-    "analyze_emotion": false
+      "company_context": "互联网ToB场景"
   },
   "background": {
     "job_position": "Java后端工程师",

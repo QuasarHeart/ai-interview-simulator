@@ -4,6 +4,13 @@ __pycache__/
 *.pyd
 .venv/
 venv/
+.pytest_cache/
+.vscode/
+.env.*
+.env.ml-service
+.coverage
+*.log
+*.tar.gz
 .env
 .git
 .gitignore
@@ -11,3 +18,5 @@ data/
 outputs/
 docs/
 scripts/
+tests/
+docker/

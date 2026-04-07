@@ -34,3 +34,12 @@ services:
       interview-api-v1:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - ml_service
+
+
+
+networks:
+  ml_service:
+    # 外部网络
+    external: true

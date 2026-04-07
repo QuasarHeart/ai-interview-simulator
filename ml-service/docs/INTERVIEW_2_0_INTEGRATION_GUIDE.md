@@ -14,7 +14,7 @@
 当前验证状态：
 - 运行时单测通过（异常分支、清理、命令顺序、report 边界）
 - 官方风格行为评测通过（JudgeGroup + judges）
-- 真实在线行为 smoke 已跑通（`openai_compat` 后端）
+- 2.0 runtime 已切换到 Google Gemini Live 插件，在线 smoke 走 Google/Gemini 配置
 
 注意：
 - 如果使用 LiveKit Inference 作为评测后端，需保证 `LIVEKIT_API_KEY/LIVEKIT_API_SECRET` 与模型权限正确；否则可能出现 401。
@@ -37,7 +37,7 @@
 
 ## 3.1 LiveKit 房间 metadata（后端创建房间时传）
 
-2.0 从 `ctx.room.metadata` 读取会话资料。支持 JSON 字符串或 dict。
+2.0 优先从 `ctx.room.metadata` 读取会话资料，同时兼容 `ctx.metadata` 和 `ctx.job.metadata` 作为补充来源。支持 JSON 字符串或 dict。
 
 推荐结构：
 
@@ -70,7 +70,8 @@
 | `interview_config.company_context` | 可选 | 公司语境 | 默认 `COMPANY_CONTEXT` |
 
 说明：
-- metadata 为空或 JSON 非法时，会降级为默认配置并记录 warning。
+  - metadata 为空或 JSON 非法时，会降级为默认配置并记录 warning。
+  - 如果房间 metadata 缺失，worker 会尝试读取 job metadata；因此上游 dispatch/job request 也可以继续携带同样的 JSON 契约。
 语义约定：
 - `mode=text`：1.0 语音/文本面试模式。
 - `mode=audio`：2.0 仅语音通话。
@@ -149,8 +150,7 @@
     "mode": "video",
     "interviewer_style": "expert",
     "difficulty": "hard",
-    "company_context": "电商交易场景",
-    "analyze_emotion": true
+    "company_context": "电商交易场景"
   },
   "interview_context": {
     "job_position": "Java后端工程师",
@@ -197,13 +197,16 @@
 至少确认：
 
 - 模型与网关
-  - `DASHSCOPE_API_KEY`
-  - `DASHSCOPE_BASE_URL`
-  - `REALTIME_MODEL`
-  - `REASONING_MODEL`
-- realtime
-  - `REALTIME_API_KEY`
-  - `REALTIME_BASE_URL`
+  - `GOOGLE_API_KEY`
+  - `GOOGLE_USE_VERTEXAI`
+  - `GOOGLE_CLOUD_PROJECT`
+  - `GOOGLE_CLOUD_LOCATION`
+  - `GEMINI_MODEL`
+  - `GEMINI_VOICE`
+  - `GEMINI_LANGUAGE`
+  - `GEMINI_TEMPERATURE`
+- 报告评分模型
+  - `REPORT_MODEL`
 - 报告桥接
   - `REPORT_API_URL`
   - `REPORT_CALLBACK_URL_TEMPLATE`
@@ -316,13 +319,12 @@ conda run -n ml-service pytest -q tests/test_agent_behavior_eval.py -q
 
 ## 6.3 官方风格行为评测（真实在线）
 
-推荐使用 openai_compat 后端（已在当前环境跑通）：
+推荐使用 Google/Gemini 作为在线 smoke 的默认模型配置：
 
 ```bash
 cd ml-service
 set -a && source .env.ml-service >/dev/null 2>&1 && set +a
 LIVEKIT_BEHAVIOR_EVAL_ONLINE=1 \
-LIVEKIT_EVAL_BACKEND=openai_compat \
 conda run -n ml-service pytest -q tests/test_agent_behavior_eval.py::test_behavior_eval_online_smoke -q
 ```
 
@@ -332,7 +334,6 @@ conda run -n ml-service pytest -q tests/test_agent_behavior_eval.py::test_behavi
 cd ml-service
 set -a && source .env.ml-service >/dev/null 2>&1 && set +a
 LIVEKIT_BEHAVIOR_EVAL_ONLINE=1 \
-LIVEKIT_EVAL_BACKEND=openai_compat \
 conda run -n ml-service pytest -q
 ```
 
@@ -344,13 +345,13 @@ conda run -n ml-service pytest -q
 
 处理：
 - 若走 LiveKit Inference：检查 `LIVEKIT_API_KEY/LIVEKIT_API_SECRET` 与模型权限
-- 可切到 `LIVEKIT_EVAL_BACKEND=openai_compat` 并提供 DashScope/OpenAI 兼容凭据
+- 若走 Google Gemini：检查 `GOOGLE_API_KEY`，或确认 Vertex AI 的 `GOOGLE_USE_VERTEXAI/GOOGLE_CLOUD_PROJECT/GOOGLE_CLOUD_LOCATION` 配置正确
 
 ## 7.2 metadata 不生效
 
 处理：
 - 确认 metadata 是合法 JSON
-- 确认字段放在 `interview_config` 或顶层兼容字段
+- 确认字段放在 `room.metadata`，或者至少放在 `ctx.job.metadata` / `ctx.metadata` 的兼容 JSON 中
 - 检查日志中是否有 `No valid metadata JSON` / `session_id mismatch`
 
 ## 7.3 report 未下发
@@ -400,7 +401,7 @@ docker run --rm -it \
 
 ## 9.3 容器联测要点
 
-1. 确认容器内可访问 LiveKit 与模型网关（DASHSCOPE/Realtime）。
+1. 确认容器内可访问 LiveKit 与 Google/Gemini 模型网关。
 2. room metadata 契约保持与 3.1 一致。
 3. 后端 report API 地址建议不要写 `127.0.0.1`，容器内应改成可达地址（例如宿主机域名、服务名或内网地址）。
 
@@ -516,7 +517,7 @@ docker compose -f docker-compose.dual.yml down
 这是正常现象，原因是 2.0 依赖了 `livekit-agents` 生态。
 
 主要原因：
-1. `requirements.agent2.txt` 里有 `livekit-agents` 和 `livekit-plugins-openai`。
+1. `requirements.agent2.txt` 里有 `livekit-agents` 和 `livekit-plugins-google`。
 2. 这两个包会带入一批传递依赖（例如 `numpy`、`av`、`opentelemetry-*`、`livekit-*`）。
 3. 第一次 `docker build` 没有镜像缓存时，会完整下载并安装一次。
 
