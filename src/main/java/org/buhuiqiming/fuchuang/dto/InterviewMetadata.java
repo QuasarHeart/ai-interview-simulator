@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.buhuiqiming.fuchuang.entity.jpa.InterviewEntity;
+import org.buhuiqiming.fuchuang.mapper.UserMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.PropertyNamingStrategies;
 import tools.jackson.databind.annotation.JsonNaming;
@@ -19,7 +21,8 @@ public class InterviewMetadata {
     private String jdSummary;
     private String resumeContent;
     private InterviewConfig interviewConfig;
-
+    @Autowired
+    private UserMapper userMapper;
     @Data
     @Builder
     @NoArgsConstructor
@@ -41,7 +44,7 @@ public class InterviewMetadata {
         this.sessionId = interviewEntity.getInterviewId();
         this.jobPosition = interviewEntity.getJobRole();
         this.jdSummary = interviewEntity.getJobInfo();
-        this.resumeContent = interviewEntity.getHistorySummary();
+        this.resumeContent = userMapper.getVitaContent(interviewEntity.getUserId());
         this.interviewConfig = InterviewConfig.builder()
                 .mode(interviewEntity.getMode())
                 .interviewerStyle(interviewEntity.getInterviewerStyle())
