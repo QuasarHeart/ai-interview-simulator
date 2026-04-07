@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
 @RestController
-@RequestMapping("/cos/file")
+@RequestMapping("/api/cos/file")
 public class FileController {
     private final FileService fileService;
 

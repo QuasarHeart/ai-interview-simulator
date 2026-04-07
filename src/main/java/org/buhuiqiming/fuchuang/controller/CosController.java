@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
 @RestController
-@RequestMapping("/cos")
+@RequestMapping("/api/cos")
 public class CosController {
 
     LLMCallService llmCallService;

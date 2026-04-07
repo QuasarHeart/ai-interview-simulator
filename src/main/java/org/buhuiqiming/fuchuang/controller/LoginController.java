@@ -7,9 +7,11 @@ import org.buhuiqiming.fuchuang.service.UserService;
 import org.buhuiqiming.fuchuang.util.UserContext;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@RequestMapping("/api")
 @Slf4j
 public class LoginController {
 

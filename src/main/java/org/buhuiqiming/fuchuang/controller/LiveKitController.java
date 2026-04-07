@@ -22,7 +22,7 @@ public class LiveKitController {
     }
 
 
-    @PostMapping("/webhook")
+    @PostMapping("/api/webhook")
     public ResponseEntity<String> handleWebhook(
             @RequestHeader("Authorization") String authHeader,
             @RequestBody String body) {
