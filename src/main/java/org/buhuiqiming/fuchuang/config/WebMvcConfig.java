@@ -18,10 +18,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(loginInterceptor)
                 .addPathPatterns("/**")             // 拦截所有请求
                 .excludePathPatterns(               // 排除不需要登录的接口
-                        "/login",              // 登录接口
-                        "/code",// 发送验证码
-                        "/users/resetPassword",// 重置密码
-                        "/cos/analyze",  //COS回调
+                        "/api/login",              // 登录接口
+                        "/api/code",// 发送验证码
+                        "/api/users/resetPassword",// 重置密码
+                        "/api/cos/analyze",  //COS回调
                         "/api/v1/interviews/*/report-callback"
                 );
     }

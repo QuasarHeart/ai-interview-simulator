@@ -8,7 +8,7 @@ import org.buhuiqiming.fuchuang.service.UserService;
 import org.springframework.web.bind.annotation.*;
 
 @Slf4j
-@RequestMapping("/users")
+@RequestMapping("/api/users")
 @RestController
 public class UserController {
     private final UserService userService;

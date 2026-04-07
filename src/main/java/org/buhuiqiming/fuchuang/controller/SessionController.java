@@ -20,7 +20,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 @RestController
-@RequestMapping("/session")
+@RequestMapping("/api/session")
 @Slf4j
 public class SessionController {
 
