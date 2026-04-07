@@ -6,8 +6,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.buhuiqiming.fuchuang.entity.jpa.InterviewEntity;
 import org.buhuiqiming.fuchuang.mapper.UserMapper;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.PropertyNamingStrategies;
 import tools.jackson.databind.annotation.JsonNaming;
@@ -15,7 +13,6 @@ import tools.jackson.databind.annotation.JsonNaming;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-@Component
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class InterviewMetadata {
     private String sessionId;
@@ -23,8 +20,6 @@ public class InterviewMetadata {
     private String jdSummary;
     private String resumeContent;
     private InterviewConfig interviewConfig;
-    @Autowired
-    private UserMapper userMapper;
     @Data
     @Builder
     @NoArgsConstructor
@@ -42,7 +37,7 @@ public class InterviewMetadata {
     public String toJson() {
         return new ObjectMapper().writeValueAsString(this);
     }
-    public InterviewMetadata(InterviewEntity interviewEntity){
+    public InterviewMetadata(InterviewEntity interviewEntity, UserMapper userMapper){
         this.sessionId = interviewEntity.getInterviewId();
         this.jobPosition = interviewEntity.getJobRole();
         this.jdSummary = interviewEntity.getJobInfo();

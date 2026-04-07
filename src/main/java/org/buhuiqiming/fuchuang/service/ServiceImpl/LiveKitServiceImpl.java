@@ -4,6 +4,7 @@ import io.livekit.server.*;
 import lombok.extern.slf4j.Slf4j;
 import org.buhuiqiming.fuchuang.dto.InterviewMetadata;
 import org.buhuiqiming.fuchuang.entity.jpa.InterviewEntity;
+import org.buhuiqiming.fuchuang.mapper.UserMapper;
 import org.buhuiqiming.fuchuang.service.InterviewService;
 import org.buhuiqiming.fuchuang.service.LiveKitService;
 import org.springframework.stereotype.Service;
@@ -20,8 +21,10 @@ public class LiveKitServiceImpl implements LiveKitService {
     private final String apiKey = System.getenv("LIVEKIT_API_KEY");
     private final String apiSecret = System.getenv("LIVEKIT_API_SECRET");
     private final InterviewService interviewService;
-    public LiveKitServiceImpl(InterviewService interviewService) {
+    private final UserMapper userMapper;
+    public LiveKitServiceImpl(InterviewService interviewService, UserMapper userMapper) {
         this.interviewService = interviewService;
+        this.userMapper = userMapper;
     }
 
     // 创建 RoomServiceClient 实例
@@ -37,7 +40,7 @@ public class LiveKitServiceImpl implements LiveKitService {
 
         String livekitUrl = host;
         // 使用蛇形命名的 Metadata 对象
-        InterviewMetadata metadataObj = new InterviewMetadata(interview);
+        InterviewMetadata metadataObj = new InterviewMetadata(interview,userMapper);
         String metadataJson = metadataObj.toJson();
 
         log.info("metadata:{}",metadataJson);
