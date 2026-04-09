@@ -9,6 +9,7 @@ import org.buhuiqiming.fuchuang.dto.GenerateReportResponse;
 import org.buhuiqiming.fuchuang.dto.InterviewFollowByRequest;
 import org.buhuiqiming.fuchuang.entity.jpa.InterviewEntity;
 import org.buhuiqiming.fuchuang.entity.jpa.InterviewTurnsEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
@@ -26,6 +27,9 @@ public interface InterviewService {
     // 创建面试
     String createInterview(CreateInterviewDTO dto);
 
+    @Transactional(rollbackFor = Exception.class)
+    SseEmitter startInterviewStream(String interviewId);
+
     // 开始面试
     String startInterview(String interviewId);
 
@@ -37,6 +41,8 @@ public interface InterviewService {
 
     // 结束面试会话
     void finishInterview(String interviewId);
+
+    void processEvaluationTask(String interviewId, int turnNumber, String messageId);
 
     // 获取单轮回答评价
     void getTurnsJudgement(InterviewEntity interview, InterviewTurnsEntity interviewTurns, String context);

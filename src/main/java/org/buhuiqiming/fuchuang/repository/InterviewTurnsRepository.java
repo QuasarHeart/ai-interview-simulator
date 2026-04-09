@@ -20,7 +20,7 @@ public interface InterviewTurnsRepository extends JpaRepository<InterviewTurnsEn
     @Query("SELECT COUNT(t) FROM InterviewTurnsEntity t " +
             "WHERE t.interviewId = :interviewId " +
             "AND t.evaluationResult IS NULL " +
-            "AND (t.targetStage IS NULL OR t.targetStage != 'end') " +
+            "AND (t.targetStage IS NULL OR t.targetStage NOT IN ('end', 'failedEvaluation')) " +
             "AND (t.stageTransition IS NULL OR t.stageTransition != 'end')")
     int countUnEvaluatedTurns(@Param("interviewId") String interviewId);
 }
