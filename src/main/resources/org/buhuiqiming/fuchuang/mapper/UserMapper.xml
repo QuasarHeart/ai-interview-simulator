@@ -71,7 +71,7 @@
         strengths JSON,
         weaknesses JSON,
         suggestions JSON,
-        overall_score DOUBLE,
+        overall_score DOUBLE
         );
     </update>
 
