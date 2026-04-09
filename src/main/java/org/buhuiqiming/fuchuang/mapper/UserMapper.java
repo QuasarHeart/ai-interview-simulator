@@ -68,7 +68,7 @@ public interface UserMapper {
 
 
     // 查询用户的简历分析结果
-    @Select("SELECT vita_content, strengths, weaknesses, suggestions, overall_score" +
+    @Select("SELECT strengths, weaknesses, suggestions, overall_score" +
             "FROM user WHERE user_id = #{userId}")
     ResumeAnalysisDTO selectResumeAnalysis(@Param("userId") Long userId);
 
@@ -77,7 +77,6 @@ public interface UserMapper {
     @AllArgsConstructor
     @NoArgsConstructor
     class ResumeAnalysisDTO {
-        private String resumeContent;
         private String strengths;  // JSON字符串
         private String weaknesses; // JSON字符串
         private String suggestions; // JSON字符串

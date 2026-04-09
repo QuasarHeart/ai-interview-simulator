@@ -190,7 +190,6 @@ public class UserServiceImpl implements UserService {
         }
 
         ResumeAnalysisVO vo = new ResumeAnalysisVO();
-        vo.setResumeContent(dto.getResumeContent());
         vo.setOverallScore(dto.getOverallScore());
 
         // 解析JSON字符串为列表
