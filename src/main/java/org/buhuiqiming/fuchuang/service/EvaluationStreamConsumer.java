@@ -32,21 +32,8 @@ public class EvaluationStreamConsumer implements StreamListener<String, MapRecor
         log.info("MQ 消费者接单: 开始执行评价任务, interviewId: {}, turnNumber: {}", interviewId, turnNumber);
 
         try {
-            InterviewEntity interview = interviewService.getInterviewOrElseThrow(interviewId);
-            InterviewTurnsEntity turn = interviewTurnsRepository.findByInterviewIdAndTurnNumber(interviewId, turnNumber);
-            String resumeContent = userMapper.getVitaContent(interview.getUserId());
-
-            interviewService.getTurnsJudgement(interview, turn, resumeContent);
-
-            interviewTurnsRepository.save(turn);
-
-            // 通知 Redis 任务结束，清除对应 PEL
-            stringRedisTemplate.opsForStream().acknowledge("interview-eval-group", message);
+            interviewService.processEvaluationTask(interviewId, turnNumber, String.valueOf(message.getId()));
             log.info("MQ 消费者完工并 ACK: interviewId: {}, turnNumber: {}", interviewId, turnNumber);
-            stringRedisTemplate.opsForStream().delete("interview:eval:stream", message.getId());
-
-            // 尝试生成报告
-            interviewService.tryTriggerReportGeneration(interviewId);
 
         } catch (Exception e) {
             log.error("MQ 消费者执行评价异常, interviewId: {}, turnNumber: {}", interviewId, turnNumber, e);

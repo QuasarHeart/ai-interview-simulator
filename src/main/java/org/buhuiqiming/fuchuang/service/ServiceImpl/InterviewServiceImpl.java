@@ -5,6 +5,7 @@ import org.buhuiqiming.fuchuang.VO.GrowthCurveVO;
 import org.buhuiqiming.fuchuang.VO.InterviewVO;
 import org.buhuiqiming.fuchuang.VO.InterviewTurnsVO;
 import org.buhuiqiming.fuchuang.VO.ReportResultVO;
+import org.buhuiqiming.fuchuang.config.RedisStreamConfig;
 import org.buhuiqiming.fuchuang.dto.*;
 import org.buhuiqiming.fuchuang.entity.jpa.InterviewEntity;
 import org.buhuiqiming.fuchuang.entity.jpa.InterviewTurnsEntity;
@@ -109,6 +110,124 @@ public class InterviewServiceImpl implements InterviewService {
     }
 
     @Override
+    public SseEmitter startInterviewStream(String interviewId){
+        System.out.println("startInterviewStream");
+        SseEmitter emitter = new SseEmitter(0L);
+        InterviewEntity interview = getInterviewOrElseThrow(interviewId);
+        if (!"CREATED".equals(interview.getInterviewStatus())) {
+            throw new ServiceException(409, "状态不允许：面试已经开始或已结束");
+        }
+
+        log.info("当前流程，创建会话，阶段：请求ml");
+        executorService.execute(() -> {
+            try {
+                InterviewStartRequest requestBody = InterviewStartRequest.builder()
+                        .sessionId(interviewId)
+                        .jobPosition(interview.getJobRole())
+                        .jdSummary(interview.getJobInfo())
+                        .resumeContent(userMapper.getVitaContent(UserContext.get())) // 简历的解析文本
+                        .interviewConfig(InterviewStartRequest.InterviewConfig.builder()
+                                .mode(interview.getMode())
+                                .analyzeEmotion(false)
+                                .interviewerStyle(interview.getInterviewerStyle())
+                                .companyContext(interview.getCompanyContext())
+                                .difficulty(interview.getDifficulty())
+                                .build())
+                        .flowControl(InterviewStartRequest.FlowControl.builder()
+                                .stageTransition("continue")
+                                .targetStage("intro")
+                                .build())
+                        .build();
+                restClient.post()
+                        .uri("/start/stream")
+                        .accept(MediaType.TEXT_EVENT_STREAM)
+                        .body(requestBody)
+                        .exchange((request, response) -> {
+                            if (response.getStatusCode().isError()) {
+                                emitter.completeWithError(new RuntimeException("算法端响应异常: " + response.getStatusCode()));
+                                return null;
+                            }
+                            StringBuilder queBuffer = new StringBuilder();
+                            Map<String, Object> metaData = new HashMap<>();
+
+                            try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                                    new java.io.InputStreamReader(response.getBody(), java.nio.charset.StandardCharsets.UTF_8))) {
+                                String line;
+                                while ((line = reader.readLine()) != null) {
+                                    if (!line.startsWith("data: ")) {
+                                        continue;
+                                    }
+                                    String jsonStr = line.substring(6).trim();
+                                    JsonNode rootNode = objectMapper.readTree(jsonStr);
+                                    String type = rootNode.path("type").asString();
+
+                                    switch (type) {
+                                        case "token":
+                                            String field = rootNode.path("field").asString();
+                                            String content = rootNode.path("content").asString();
+
+                                            if ("question".equals(field)) {
+                                                queBuffer.append(content);
+                                            }
+
+                                            emitter.send(content);
+                                            break;
+
+                                        case "meta":
+                                            if (rootNode.has("flow_control")) {
+                                                metaData.put("target_stage", rootNode.path("flow_control").path("target_stage").asString());
+                                                metaData.put("stage_transition", rootNode.path("flow_control").path("stage_transition").asString());
+                                            }
+                                            break;
+
+                                        case "done":
+                                            emitter.send("[DONE]");
+                                            startInterviewInfoHandle(interviewId, queBuffer.toString(), metaData);
+                                            emitter.complete();
+                                            break;
+
+                                        case "error":
+                                            emitter.send("[ERROR]");
+                                            emitter.completeWithError(new RuntimeException("算法端流式生成出错"));
+                                            break;
+
+                                        default:
+                                            break;
+                                    }
+
+                                    if ("done".equals(type) || "error".equals(type)) {
+                                        break;
+                                    }
+                                }
+                            }
+                            return null;
+                        });
+            } catch (Exception e) {
+                emitter.completeWithError(e);
+            }
+        });
+        return emitter;
+    }
+
+    private void startInterviewInfoHandle(String interviewId, String question, Map<String, Object> metaData){
+        InterviewEntity interview = getInterviewOrElseThrow(interviewId);
+        int turnsNum = interview.getTurnsNumber() + 1;
+        interview.setTurnsNumber(turnsNum);
+        interview.setInterviewStatus("RUNNING");
+        interview.setHistorySummary("当前为第一轮对话，暂无面试总结");
+
+        InterviewTurnsEntity interviewTurns = new InterviewTurnsEntity(interviewId, turnsNum, question, "");
+        if(metaData.containsKey("target_stage") && metaData.containsKey("stage_transition")){
+            interviewTurns.setStageTransition(metaData.get("stage_transition").toString());
+            interviewTurns.setTargetStage(metaData.get("target_stage").toString());
+        }
+
+        interviewRepository.save(interview);
+        interviewTurnsRepository.save(interviewTurns);
+
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public String startInterview(String interviewId){
         System.out.println("startInterview");
@@ -160,15 +279,12 @@ public class InterviewServiceImpl implements InterviewService {
         int turnsNumber = interview.getTurnsNumber() + 1;
         interview.setTurnsNumber(turnsNumber);
 
-
         interviewRepository.save(interview);
 
         InterviewTurnsEntity interviewTurnsEntity = new InterviewTurnsEntity(interviewId, turnsNumber, interviewBeginQue, "");
         interviewTurnsEntity.setStageTransition("continue");
         interviewTurnsEntity.setTargetStage("intro");
         interviewTurnsRepository.save(interviewTurnsEntity);
-
-
 
         return interviewBeginQue;
     }
@@ -396,6 +512,24 @@ public class InterviewServiceImpl implements InterviewService {
         interview.setInterviewStatus("FINISHED");
         interview.setDuration(Duration.between(interview.getCreateTime(), LocalDateTime.now()));
         interviewRepository.save(interview);
+    }
+
+    @Override
+    public void processEvaluationTask(String interviewId, int turnNumber, String messageId){
+        InterviewEntity interview = getInterviewOrElseThrow(interviewId);
+        InterviewTurnsEntity turn = interviewTurnsRepository.findByInterviewIdAndTurnNumber(interviewId, turnNumber);
+        String resumeContent = userMapper.getVitaContent(interview.getUserId());
+
+        getTurnsJudgement(interview, turn, resumeContent);
+        interviewTurnsRepository.save(turn);
+
+        stringRedisTemplate.opsForStream().acknowledge(
+                RedisStreamConfig.EVAL_STREAM_KEY,
+                RedisStreamConfig.EVAL_GROUP_NAME,
+                messageId
+        );
+        stringRedisTemplate.opsForStream().delete(RedisStreamConfig.EVAL_STREAM_KEY, messageId);
+        self.tryTriggerReportGeneration(interviewId);
     }
 
     @Override
