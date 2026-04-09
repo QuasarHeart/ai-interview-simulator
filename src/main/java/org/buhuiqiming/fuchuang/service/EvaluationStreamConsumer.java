@@ -1,13 +1,8 @@
 package org.buhuiqiming.fuchuang.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.buhuiqiming.fuchuang.entity.jpa.InterviewEntity;
-import org.buhuiqiming.fuchuang.entity.jpa.InterviewTurnsEntity;
-import org.buhuiqiming.fuchuang.mapper.UserMapper;
-import org.buhuiqiming.fuchuang.repository.InterviewTurnsRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.connection.stream.MapRecord;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.stream.StreamListener;
 import org.springframework.stereotype.Component;
 
@@ -17,12 +12,6 @@ public class EvaluationStreamConsumer implements StreamListener<String, MapRecor
 
     @Autowired
     private InterviewService interviewService;
-    @Autowired
-    private InterviewTurnsRepository interviewTurnsRepository;
-    @Autowired
-    private UserMapper userMapper;
-    @Autowired
-    private StringRedisTemplate stringRedisTemplate;
 
     @Override
     public void onMessage(MapRecord<String, String, String> message) {
