@@ -67,7 +67,11 @@
         description VARCHAR(100),
         avatar VARCHAR(100),
         vita_url VARCHAR(100),
-        vita_content VARCHAR(2000)
+        vita_content VARCHAR(2000),
+        strengths JSON,
+        weaknesses JSON,
+        suggestions JSON,
+        overall_score DOUBLE,
         );
     </update>
 

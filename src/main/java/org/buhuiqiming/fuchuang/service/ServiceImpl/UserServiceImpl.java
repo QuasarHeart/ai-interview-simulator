@@ -1,5 +1,8 @@
 package org.buhuiqiming.fuchuang.service.ServiceImpl;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.buhuiqiming.fuchuang.cos.URLAK;
 import org.buhuiqiming.fuchuang.dto.LoginDTO;
@@ -19,7 +22,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -30,6 +35,8 @@ public class UserServiceImpl implements UserService {
     private final JwtUtils jwtUtils;
     private final StringRedisTemplate stringRedisTemplate;
     private final URLAK urlAK;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
 
     public UserServiceImpl(UserMapper userMapper, CodeService codeService, JwtUtils jwtUtils, StringRedisTemplate stringRedisTemplate, URLAK urlAK) {
         this.userMapper = userMapper;
@@ -171,6 +178,56 @@ public class UserServiceImpl implements UserService {
         //密码hash
         userDTO.getAccount().setPassword(hashPassword(userDTO.getAccount().getPassword()));
         userMapper.updateAccount(userDTO.getAccount(),account.getId().longValue());
-
     }
+    /**
+     * 获取用户的简历分析结果（返回解析后的列表）
+     */
+    @Override
+    public ResumeAnalysisVO getResumeAnalysis(Long userId) {
+        UserMapper.ResumeAnalysisDTO dto = userMapper.selectResumeAnalysis(userId);
+        if (dto == null) {
+            return null;
+        }
+
+        ResumeAnalysisVO vo = new ResumeAnalysisVO();
+        vo.setResumeContent(dto.getResumeContent());
+        vo.setOverallScore(dto.getOverallScore());
+
+        // 解析JSON字符串为列表
+        try {
+            if (dto.getStrengths() != null && !dto.getStrengths().isEmpty()) {
+                List<String> strengths = objectMapper.readValue(dto.getStrengths(), new TypeReference<List<String>>() {});
+                vo.setStrengths(strengths);
+            }
+
+            if (dto.getWeaknesses() != null && !dto.getWeaknesses().isEmpty()) {
+                List<String> weaknesses = objectMapper.readValue(dto.getWeaknesses(), new TypeReference<List<String>>() {});
+                vo.setWeaknesses(weaknesses);
+            }
+
+            if (dto.getSuggestions() != null && !dto.getSuggestions().isEmpty()) {
+                List<String> suggestions = objectMapper.readValue(dto.getSuggestions(), new TypeReference<List<String>>() {});
+                vo.setSuggestions(suggestions);
+            }
+        } catch (Exception e) {
+            log.error("解析JSON失败", e);
+            vo.setStrengths(new ArrayList<>());
+            vo.setWeaknesses(new ArrayList<>());
+            vo.setSuggestions(new ArrayList<>());
+        }
+
+        return vo;
+    }
+    /**
+     * 简历分析结果VO
+     */
+    @Data
+    public static class ResumeAnalysisVO {
+        private String resumeContent;
+        private List<String> strengths;
+        private List<String> weaknesses;
+        private List<String> suggestions;
+        private Double overallScore;
+    }
+
 }

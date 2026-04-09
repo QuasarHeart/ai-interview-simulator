@@ -1,5 +1,8 @@
 package org.buhuiqiming.fuchuang.mapper;
 
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.apache.ibatis.annotations.*;
 import org.buhuiqiming.fuchuang.entity.Account;
 import org.buhuiqiming.fuchuang.entity.User;
@@ -51,8 +54,33 @@ public interface UserMapper {
     @Select("select vita_content from user where user_id = #{id}")
     String getVitaContent(Long id);
 
+    @Update("UPDATE user SET strengths = #{strengths}, weaknesses = #{weaknesses}, " +
+            "suggestions = #{suggestions}, overall_score = #{overallScore}, " +
+            "WHERE user_id = #{userId}")
+    void updateAnalysisResult(@Param("strengths") String strengths,
+                              @Param("weaknesses") String weaknesses,
+                              @Param("suggestions") String suggestions,
+                              @Param("overallScore") Double overallScore,
+                              @Param("userId") Long userId);
 
     void init_user();
     void init_account();
 
+
+    // 查询用户的简历分析结果
+    @Select("SELECT resume_content, strengths, weaknesses, suggestions, overall_score" +
+            "FROM user WHERE user_id = #{userId}")
+    ResumeAnalysisDTO selectResumeAnalysis(@Param("userId") Long userId);
+
+    // 内部类用于查询结果
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    class ResumeAnalysisDTO {
+        private String resumeContent;
+        private String strengths;  // JSON字符串
+        private String weaknesses; // JSON字符串
+        private String suggestions; // JSON字符串
+        private Double overallScore;
+    }
 }
