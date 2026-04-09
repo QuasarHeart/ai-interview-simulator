@@ -69,7 +69,7 @@ public interface UserMapper {
 
     // 查询用户的简历分析结果
     @Select("SELECT strengths, weaknesses, suggestions, overall_score" +
-            "FROM user WHERE user_id = #{userId}")
+            " FROM user WHERE user_id = #{userId}")
     ResumeAnalysisDTO selectResumeAnalysis(@Param("userId") Long userId);
 
     // 内部类用于查询结果
