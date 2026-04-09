@@ -10,13 +10,11 @@ import org.buhuiqiming.fuchuang.service.LLMCallService;
 import org.buhuiqiming.fuchuang.util.ResumeParserUtils;
 import org.buhuiqiming.fuchuang.util.UserContext;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
-@Service
 public class LLMCallServiceImpl implements LLMCallService {
 
     private  final UserMapper userMapper;

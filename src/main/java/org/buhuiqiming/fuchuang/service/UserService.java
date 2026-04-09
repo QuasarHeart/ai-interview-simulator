@@ -4,6 +4,7 @@ import org.buhuiqiming.fuchuang.dto.LoginDTO;
 import org.buhuiqiming.fuchuang.dto.LoginInfo;
 import org.buhuiqiming.fuchuang.dto.UserDTO;
 import org.buhuiqiming.fuchuang.entity.User;
+import org.buhuiqiming.fuchuang.service.ServiceImpl.UserServiceImpl;
 
 public interface UserService {
     User getUserBasicInfo();
@@ -19,4 +20,5 @@ public interface UserService {
 
     LoginInfo login(LoginDTO loginDTO);
     void logout();
+    public UserServiceImpl.ResumeAnalysisVO getResumeAnalysis(Long userId);
 }

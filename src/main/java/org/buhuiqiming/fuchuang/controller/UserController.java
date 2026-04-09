@@ -5,6 +5,7 @@ import org.buhuiqiming.fuchuang.dto.Result;
 import org.buhuiqiming.fuchuang.dto.UserDTO;
 import org.buhuiqiming.fuchuang.entity.User;
 import org.buhuiqiming.fuchuang.service.UserService;
+import org.buhuiqiming.fuchuang.util.UserContext;
 import org.springframework.web.bind.annotation.*;
 
 @Slf4j
@@ -42,6 +43,10 @@ public class UserController {
     public Result resetPassword(@RequestBody UserDTO userDTO){
         userService.resetPassword(userDTO);
         return Result.success();
+    }
+    @GetMapping("/resumeAnalysis")
+    public Result getResumeAnalysis(){
+        return Result.success(userService.getResumeAnalysis(UserContext.get()));
     }
 
 }
