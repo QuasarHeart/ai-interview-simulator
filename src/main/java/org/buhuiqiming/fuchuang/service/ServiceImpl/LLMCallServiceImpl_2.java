@@ -259,9 +259,9 @@ public class LLMCallServiceImpl_2 implements LLMCallService {
 
     @Override
     public void analyzeXml(String xml) {
-        Long userId = UserContext.get();
 
         String text = ResumeParserUtils.extractTextFromXml(xml);
+        Long userId = UserContext.get();
         log.info("用户id:{}, 粗略处理完成", userId);
 
         if (Boolean.TRUE.equals(redisTemplate.hasKey("userVita:" + userId + ":status"))) {
