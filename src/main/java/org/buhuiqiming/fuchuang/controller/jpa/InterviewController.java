@@ -69,6 +69,10 @@ public class InterviewController {
         return Result.success(data);
     }
 
+    @PostMapping(value = "/start", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter startInterviewByStream(@RequestParam("interviewId") String interviewId) throws Exception {
+        return interviewService.startInterviewStream(interviewId);
+    }
     /**
      * 提交文本回答并建立SSE连接
      */
@@ -129,7 +133,7 @@ public class InterviewController {
      * 面试报告回调
      */
     @PostMapping("/{interviewId}/report-callback")
-    public void InterviewReportCallback(@PathVariable("interviewId") String interviewId, @RequestBody GenerateReportResponse  response){
+    public void InterviewReportCallback(@PathVariable("interviewId") String interviewId, @RequestBody GenerateReportResponse response){
         if(response == null){
             log.info("返回报告为空");
             throw new ServiceException(500, "返回报告为空");
