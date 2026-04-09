@@ -63,7 +63,7 @@ public class InterviewController {
         else{
             Map<String, String> liveKitData = liveKitService.startAutoInterview(interviewId);
             data.put("room", liveKitData.get("room"));
-            data.put("token", liveKitData.get("token"));
+            data.put("livekitToken", liveKitData.get("token"));
             data.put("url", liveKitData.get("url"));
         }
         return Result.success(data);
