@@ -88,7 +88,7 @@ public class LiveKitServiceImpl implements LiveKitService {
                 new RoomName(roomName)
         );
         return Map.of(
-                "token", token.toJwt(),
+                "livekitToken", token.toJwt(),
                 "room", roomName,
                 "url", host.replace("https://", "wss://")
         );
