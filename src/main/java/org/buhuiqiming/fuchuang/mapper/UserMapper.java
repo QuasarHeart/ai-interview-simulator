@@ -80,6 +80,6 @@ public interface UserMapper {
         private String strengths;  // JSON字符串
         private String weaknesses; // JSON字符串
         private String suggestions; // JSON字符串
-        private Double overallScore;
+        private Double overall_score;
     }
 }
