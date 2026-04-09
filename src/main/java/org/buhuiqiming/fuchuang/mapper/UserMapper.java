@@ -55,7 +55,7 @@ public interface UserMapper {
     String getVitaContent(Long id);
 
     @Update("UPDATE user SET strengths = #{strengths}, weaknesses = #{weaknesses}, " +
-            "suggestions = #{suggestions}, overall_score = #{overallScore}, " +
+            "suggestions = #{suggestions}, overall_score = #{overallScore}" +
             "WHERE user_id = #{userId}")
     void updateAnalysisResult(@Param("strengths") String strengths,
                               @Param("weaknesses") String weaknesses,
