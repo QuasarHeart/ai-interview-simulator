@@ -70,7 +70,7 @@ public class InterviewController {
     }
 
     @PostMapping(value = "/start", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter startInterviewByStream(@RequestParam("interviewId") String interviewId) throws IOException {
+    public SseEmitter startInterviewByStream(@RequestParam("interviewId") String interviewId) throws Exception {
         return interviewService.startInterviewStream(interviewId);
     }
     /**
