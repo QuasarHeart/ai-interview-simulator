@@ -90,6 +90,7 @@ REPORT_CALLBACK_URL_TEMPLATE = os.getenv(
 )
 REPORT_LOG_CALLBACK_BODY = os.getenv("REPORT_LOG_CALLBACK_BODY", "true").strip().lower() in {"1", "true", "yes", "on"}
 REPORT_LOG_CALLBACK_BODY_MAX_CHARS = int(os.getenv("REPORT_LOG_CALLBACK_BODY_MAX_CHARS", "20000"))
+REQUEST_LOG_BODY_MAX_CHARS = int(os.getenv("REQUEST_LOG_BODY_MAX_CHARS", "6000"))
 
 
 @asynccontextmanager
@@ -115,20 +116,21 @@ def _sse_event(payload: dict, ensure_ascii: bool = False) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=ensure_ascii)}\n\n"
 
 
-def _to_log_json(data: Any) -> str:
+def _to_log_json(data: Any, max_chars: int | None = None) -> str:
     try:
         if hasattr(data, "model_dump"):
             data = data.model_dump()
-        return json.dumps(data, ensure_ascii=False, default=str)
+        text = json.dumps(data, ensure_ascii=False, default=str)
     except Exception as exc:
         return f"<json-serialize-failed: {exc}>"
 
+    if max_chars is not None and max_chars > 0 and len(text) > max_chars:
+        return f"{text[:max_chars]}...(truncated)"
+    return text
+
 
 def _serialize_callback_payload_for_log(payload: dict) -> str:
-    text = _to_log_json(payload)
-    if REPORT_LOG_CALLBACK_BODY_MAX_CHARS > 0 and len(text) > REPORT_LOG_CALLBACK_BODY_MAX_CHARS:
-        return f"{text[:REPORT_LOG_CALLBACK_BODY_MAX_CHARS]}...(truncated)"
-    return text
+    return _to_log_json(payload, REPORT_LOG_CALLBACK_BODY_MAX_CHARS)
 
 
 def _try_parse_json_dict(raw: str) -> dict | None:
@@ -143,6 +145,77 @@ def _try_parse_json_dict(raw: str) -> dict | None:
         return None
     except Exception:
         return None
+
+
+_JSON_STRING_ESCAPE_MAP = {
+    "n": "\n",
+    "r": "\r",
+    "t": "\t",
+    "b": "\b",
+    "f": "\f",
+    '"': '"',
+    "\\": "\\",
+    "/": "/",
+}
+
+
+def _extract_json_string_value_prefix(raw_text: str, field_name: str) -> tuple[str, bool]:
+    if not raw_text.strip():
+        return "", False
+
+    key_token = f'"{field_name}"'
+    key_index = raw_text.find(key_token)
+    if key_index == -1:
+        return "", False
+
+    colon_index = raw_text.find(":", key_index + len(key_token))
+    if colon_index == -1:
+        return "", False
+
+    value_start = raw_text.find('"', colon_index)
+    if value_start == -1:
+        return "", False
+
+    buffer: list[str] = []
+    escape = False
+    unicode_escape: list[str] | None = None
+
+    for ch in raw_text[value_start + 1:]:
+        if unicode_escape is not None:
+            unicode_escape.append(ch)
+            if len(unicode_escape) == 6:
+                try:
+                    buffer.append(chr(int("".join(unicode_escape[2:]), 16)))
+                except ValueError:
+                    pass
+                unicode_escape = None
+            continue
+
+        if escape:
+            if ch == "u":
+                unicode_escape = ["\\", "u"]
+            else:
+                buffer.append(_JSON_STRING_ESCAPE_MAP.get(ch, ch))
+            escape = False
+            continue
+
+        if ch == "\\":
+            escape = True
+            continue
+
+        if ch == '"':
+            return "".join(buffer), True
+
+        buffer.append(ch)
+
+    return "".join(buffer), False
+
+
+def _stream_json_string_field_delta(raw_text: str, field_name: str, emitted_value: str) -> tuple[str, str, bool]:
+    current_value, is_closed = _extract_json_string_value_prefix(raw_text, field_name)
+    if current_value.startswith(emitted_value):
+        return current_value[len(emitted_value):], current_value, is_closed
+    return "", emitted_value, is_closed
 
 
 def _normalize_flow_control(value: Any, default_target_stage: str) -> dict:
@@ -641,14 +714,8 @@ async def start_interview_stream(request: StartRequest, http_request: Request):
             async for token in engine.stream_first_question(request):
                 raw_acc += token
 
-                parsed_partial = _try_parse_json_dict(raw_acc)
-                if not parsed_partial:
-                    continue
-
-                question = str(parsed_partial.get("question", ""))
-                if question.startswith(emitted_question) and len(question) > len(emitted_question):
-                    delta = question[len(emitted_question):]
-                    emitted_question = question
+                delta, emitted_question, _ = _stream_json_string_field_delta(raw_acc, "question", emitted_question)
+                if delta:
                     async for evt in _yield_text_in_chunks(delta, "question", chunk_size=12):
                         yield evt
 
@@ -699,7 +766,7 @@ async def start_interview_stream(request: StartRequest, http_request: Request):
 @app.post("/api/v1/interview/followup")
 async def followup_interview(request: FollowupRequest, http_request: Request):
     logger.info("[Followup] session=%s round=%s", request.session_id, request.round_id)
-    logger.info("[Followup][Request] %s", _to_log_json(request))
+    logger.info("[Followup][Request] %s", _to_log_json(request, REQUEST_LOG_BODY_MAX_CHARS))
     try:
         engine = get_engine(http_request)
         current_stage = _effective_current_stage(request.history_data.recent_history, round_id=request.round_id)
@@ -740,7 +807,7 @@ async def followup_interview(request: FollowupRequest, http_request: Request):
                 "flow_control": planned_flow,
             },
         }
-        logger.info("[Followup][Response] %s", _to_log_json(response_payload))
+        logger.info("[Followup][Response] %s", _to_log_json(response_payload, REQUEST_LOG_BODY_MAX_CHARS))
         return response_payload
     except Exception as e:
         logger.exception("[Followup][Error] session=%s round=%s", request.session_id, request.round_id)
@@ -748,12 +815,12 @@ async def followup_interview(request: FollowupRequest, http_request: Request):
 
 
 # ==========================================
-# 接口 2-Stream：追问流式（展示 question + immediate_feedback）
+# 接口 2-Stream：追问流式（先 immediate_feedback，再 question）
 # ==========================================
 @app.post("/api/v1/interview/followup/stream")
 async def followup_interview_stream(request: FollowupRequest, http_request: Request):
     logger.info("[Followup-Stream] session=%s round=%s", request.session_id, request.round_id)
-    logger.info("[Followup-Stream][Request] %s", _to_log_json(request))
+    logger.info("[Followup-Stream][Request] %s", _to_log_json(request, REQUEST_LOG_BODY_MAX_CHARS))
     engine = get_engine(http_request)
 
     current_stage = _effective_current_stage(request.history_data.recent_history, round_id=request.round_id)
@@ -792,34 +859,28 @@ async def followup_interview_stream(request: FollowupRequest, http_request: Requ
 
     async def event_gen():
         raw_acc = ""
-        emitted_question = ""
         emitted_feedback = ""
+        emitted_question = ""
+        feedback_is_visible = False
         try:
             async for token in _iterate_stream_following_question(engine, request, target_stage, stage_round_index):
                 raw_acc += token
 
-                parsed_partial = _try_parse_json_dict(raw_acc)
-                if not parsed_partial:
-                    continue
-
-                partial_question, partial_feedback, _ = _normalize_stage_outputs(
-                    flow_control=planned_flow,
-                    question=str(parsed_partial.get("question", "")),
-                    immediate_feedback=str(parsed_partial.get("immediate_feedback", "")),
-                    updated_history_summary=str(parsed_partial.get("updated_history_summary", "")),
-                    recent_history=request.history_data.recent_history,
+                feedback_delta, emitted_feedback, feedback_closed = _stream_json_string_field_delta(
+                    raw_acc,
+                    "immediate_feedback",
+                    emitted_feedback,
                 )
-
-                if partial_feedback.startswith(emitted_feedback) and len(partial_feedback) > len(emitted_feedback):
-                    delta = partial_feedback[len(emitted_feedback):]
-                    emitted_feedback = partial_feedback
-                    async for evt in _yield_text_in_chunks(delta, "immediate_feedback", chunk_size=12):
+                if feedback_delta:
+                    feedback_is_visible = True
+                    async for evt in _yield_text_in_chunks(feedback_delta, "immediate_feedback", chunk_size=12):
                         yield evt
+                elif emitted_feedback or feedback_closed:
+                    feedback_is_visible = True
 
-                if partial_question.startswith(emitted_question) and len(partial_question) > len(emitted_question):
-                    delta = partial_question[len(emitted_question):]
-                    emitted_question = partial_question
-                    async for evt in _yield_text_in_chunks(delta, "question", chunk_size=12):
+                question_delta, emitted_question, _ = _stream_json_string_field_delta(raw_acc, "question", emitted_question)
+                if feedback_is_visible and question_delta:
+                    async for evt in _yield_text_in_chunks(question_delta, "question", chunk_size=12):
                         yield evt
 
             parsed_raw = json_repair.loads(raw_acc)
@@ -850,7 +911,7 @@ async def followup_interview_stream(request: FollowupRequest, http_request: Requ
                 "updated_history_summary": updated_history_summary,
                 "flow_control": planned_flow,
             }
-            logger.info("[Followup-Stream][ResponseMeta] %s", _to_log_json(response_meta))
+            logger.info("[Followup-Stream][ResponseMeta] %s", _to_log_json(response_meta, REQUEST_LOG_BODY_MAX_CHARS))
 
             # 非展示字段一次性返回
             yield _sse_event({'type': 'meta', 'session_id': request.session_id, 'round_id': request.round_id, 'updated_history_summary': updated_history_summary, 'flow_control': planned_flow}, ensure_ascii=False)

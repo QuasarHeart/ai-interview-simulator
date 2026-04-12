@@ -50,6 +50,143 @@ class Settings:
 
 settings = Settings()
 
+FOLLOWUP_HISTORY_WINDOW = max(1, int(os.getenv("FOLLOWUP_HISTORY_WINDOW", "4")))
+FOLLOWUP_HISTORY_FIELD_MAX_CHARS = max(32, int(os.getenv("FOLLOWUP_HISTORY_FIELD_MAX_CHARS", "160")))
+ANALYSIS_CONTEXT_MAX_CHARS = max(256, int(os.getenv("ANALYSIS_CONTEXT_MAX_CHARS", "1200")))
+ANALYSIS_HISTORY_SUMMARY_MAX_CHARS = max(256, int(os.getenv("ANALYSIS_HISTORY_SUMMARY_MAX_CHARS", "1000")))
+ANALYSIS_QUESTION_MAX_CHARS = max(128, int(os.getenv("ANALYSIS_QUESTION_MAX_CHARS", "500")))
+ANALYSIS_ANSWER_MAX_CHARS = max(128, int(os.getenv("ANALYSIS_ANSWER_MAX_CHARS", "1500")))
+REPORT_RESULT_TEXT_MAX_CHARS = max(64, int(os.getenv("REPORT_RESULT_TEXT_MAX_CHARS", "180")))
+REPORT_SUGGESTION_MAX_CHARS = max(48, int(os.getenv("REPORT_SUGGESTION_MAX_CHARS", "140")))
+REPORT_REASON_MAX_CHARS = max(48, int(os.getenv("REPORT_REASON_MAX_CHARS", "120")))
+
+
+def _truncate_text(value: Any, max_chars: int) -> str:
+    text = str(value or "").strip()
+    if max_chars <= 0 or len(text) <= max_chars:
+        return text
+    if max_chars <= 3:
+        return text[:max_chars]
+    return f"{text[:max_chars - 3].rstrip()}..."
+
+
+def _history_item_value(item: Any, field_name: str, fallback: str = "") -> str:
+    if isinstance(item, dict):
+        value = item.get(field_name, fallback)
+    else:
+        value = getattr(item, field_name, fallback)
+    if value is None:
+        return fallback
+    return str(value)
+
+
+def _history_item_flow_value(item: Any, field_name: str, fallback: str = "") -> str:
+    flow_control = None
+    if isinstance(item, dict):
+        flow_control = item.get("flow_control")
+    else:
+        flow_control = getattr(item, "flow_control", None)
+    if isinstance(flow_control, dict):
+        value = flow_control.get(field_name, fallback)
+    else:
+        value = getattr(flow_control, field_name, fallback) if flow_control is not None else fallback
+    if value is None:
+        return fallback
+    return str(value)
+
+
+def _format_recent_history_for_prompt(recent_history: list[Any]) -> str:
+    if not recent_history:
+        return ""
+
+    lines: list[str] = []
+    for item in recent_history[-FOLLOWUP_HISTORY_WINDOW:]:
+        round_id = _history_item_value(item, "round_id", "")
+        assistant_content = _truncate_text(_history_item_value(item, "assistant_content", ""), FOLLOWUP_HISTORY_FIELD_MAX_CHARS)
+        user_content = _truncate_text(_history_item_value(item, "user_content", ""), FOLLOWUP_HISTORY_FIELD_MAX_CHARS)
+        stage_transition = _history_item_flow_value(item, "stage_transition", "continue")
+        target_stage = _history_item_flow_value(item, "target_stage", "intro")
+        lines.append(f"[{round_id}]: {assistant_content} | {user_content} | {stage_transition} -> {target_stage}")
+    return "\n".join(lines)
+
+
+def _compact_text_for_prompt(value: Any, max_chars: int) -> str:
+    return _truncate_text(value, max_chars)
+
+
+def _compact_analysis_prompt_kwargs(req: AnalysisRequest) -> dict[str, Any]:
+    return {
+        "current_stage": req.current_stage,
+        "job_position": _compact_text_for_prompt(req.content_to_analyze.job_position, ANALYSIS_CONTEXT_MAX_CHARS),
+        "jd_summary": _compact_text_for_prompt(req.content_to_analyze.jd_summary, ANALYSIS_CONTEXT_MAX_CHARS),
+        "resume_content": _compact_text_for_prompt(req.content_to_analyze.resume_content, ANALYSIS_CONTEXT_MAX_CHARS),
+        "question": _compact_text_for_prompt(req.content_to_analyze.question, ANALYSIS_QUESTION_MAX_CHARS),
+        "user_answer": _compact_text_for_prompt(req.content_to_analyze.user_answer, ANALYSIS_ANSWER_MAX_CHARS),
+        "history_summary": _compact_text_for_prompt(req.content_to_analyze.history_summary, ANALYSIS_HISTORY_SUMMARY_MAX_CHARS),
+        "difficulty": req.interview_config.difficulty,
+    }
+
+
+def _compact_score_reason(reason: Any, max_chars: int = REPORT_REASON_MAX_CHARS) -> dict[str, Any]:
+    if isinstance(reason, dict):
+        return {
+            "reason": _compact_text_for_prompt(reason.get("reason", ""), max_chars),
+            "score": reason.get("score", 0.0),
+        }
+    return {"reason": _compact_text_for_prompt(reason, max_chars), "score": 0.0}
+
+
+def _plain_object_to_dict(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    if hasattr(value, "model_dump"):
+        dumped = value.model_dump()
+        if isinstance(dumped, dict):
+            return dumped
+    if hasattr(value, "__dict__"):
+        return {key: nested for key, nested in vars(value).items() if not key.startswith("_")}
+    return {}
+
+
+def _compact_dimension_details(details: Any) -> dict[str, Any]:
+    if not isinstance(details, dict):
+        return {}
+
+    compacted: dict[str, Any] = {}
+    for section_name, section_value in details.items():
+        if not isinstance(section_value, dict):
+            compacted[section_name] = section_value
+            continue
+
+        compacted_section: dict[str, Any] = {}
+        for key, value in section_value.items():
+            compacted_section[key] = _compact_score_reason(value, REPORT_REASON_MAX_CHARS)
+        compacted[section_name] = compacted_section
+    return compacted
+
+
+def _compact_round_results_for_report(round_results: list[Any]) -> list[dict[str, Any]]:
+    compacted_results: list[dict[str, Any]] = []
+    for item in round_results:
+        round_result = _plain_object_to_dict(item)
+        dimension_scores = _plain_object_to_dict(round_result.get("dimension_scores", {}))
+
+        compacted_results.append(
+            {
+                "round_id": round_result.get("round_id"),
+                "current_stage": round_result.get("current_stage", ""),
+                "dimension_scores": dimension_scores,
+                "dimension_details": _compact_dimension_details(round_result.get("dimension_details", {})),
+                "overall_feedback": _compact_text_for_prompt(round_result.get("overall_feedback", ""), REPORT_RESULT_TEXT_MAX_CHARS),
+                "final_score": round_result.get("final_score", 0.0),
+                "improvement_suggestions": [
+                    _compact_text_for_prompt(suggestion, REPORT_SUGGESTION_MAX_CHARS)
+                    for suggestion in list(round_result.get("improvement_suggestions", []))[:3]
+                ],
+            }
+        )
+    return compacted_results
+
 
 class LLMEngine:
     def __init__(self):
@@ -60,9 +197,9 @@ class LLMEngine:
         self.base_url = os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
         self.model = os.getenv("JUDGE_MODEL", "qwen-turbo")
         self.temperature = float(os.getenv("SCORING_TEMPERATURE", "1.0"))
-        self.request_timeout = float(os.getenv("LLM_REQUEST_TIMEOUT_SECONDS", "60"))
-        self.max_retries = int(os.getenv("LLM_MAX_RETRIES", "2"))
-        self.retry_backoff_seconds = float(os.getenv("LLM_RETRY_BACKOFF_SECONDS", "1.0"))
+        self.request_timeout = float(os.getenv("LLM_REQUEST_TIMEOUT_SECONDS", "30"))
+        self.max_retries = int(os.getenv("LLM_MAX_RETRIES", "1"))
+        self.retry_backoff_seconds = float(os.getenv("LLM_RETRY_BACKOFF_SECONDS", "0.75"))
 
         self.template_env = Environment(undefined=StrictUndefined)
 
@@ -227,7 +364,7 @@ class LLMEngine:
             "current_stage": current_stage,
             "next_stage": next_stage,
             "stage_round_index": stage_round_index,
-            "recent_history": "\n".join([f"[{item.round_id}]: {item.assistant_content} {item.user_content} {item.flow_control.stage_transition} {item.flow_control.target_stage}" for item in req.history_data.recent_history])
+            "recent_history": _format_recent_history_for_prompt(req.history_data.recent_history),
         }
         async for t in self.stream_llm_raw_text(self.prompts["followup"], kwargs):
             yield t
@@ -270,25 +407,12 @@ class LLMEngine:
             "current_stage": current_stage,
             "next_stage": next_stage,
             "stage_round_index": stage_round_index,
-            "recent_history": "\n".join([
-                f"[{item.round_id}]: {item.assistant_content} | {item.user_content} | "
-                f"{item.flow_control.stage_transition} -> {item.flow_control.target_stage}"
-                for item in req.history_data.recent_history
-            ])
+            "recent_history": _format_recent_history_for_prompt(req.history_data.recent_history),
         }
         return await self._invoke_llm(self.prompts["followup"], kwargs)
 
     async def analyze_answer(self, req: AnalysisRequest) -> dict:
-        kwargs = {
-            "current_stage": req.current_stage,
-            "job_position": req.content_to_analyze.job_position,
-            "jd_summary": req.content_to_analyze.jd_summary,
-            "resume_content": req.content_to_analyze.resume_content,
-            "question": req.content_to_analyze.question,
-            "user_answer": req.content_to_analyze.user_answer,
-            "history_summary": req.content_to_analyze.history_summary,
-            "difficulty": req.interview_config.difficulty,
-        }
+        kwargs = _compact_analysis_prompt_kwargs(req)
 
         ai_result = await self._invoke_llm(self.prompts["analysis"], kwargs)
 
@@ -375,12 +499,12 @@ class LLMEngine:
 
     async def generate_overall_report(self, req: ReportRequest) -> dict:
         kwargs = {
-            "job_position": req.interview_context.job_position,
-            "jd_summary": req.interview_context.jd_summary,
-            "resume_content": req.interview_context.resume_content,  # 补   
-            "difficulty": req.interview_config.difficulty,           # 补
+            "job_position": _compact_text_for_prompt(req.interview_context.job_position, ANALYSIS_CONTEXT_MAX_CHARS),
+            "jd_summary": _compact_text_for_prompt(req.interview_context.jd_summary, ANALYSIS_CONTEXT_MAX_CHARS),
+            "resume_content": _compact_text_for_prompt(req.interview_context.resume_content, ANALYSIS_CONTEXT_MAX_CHARS),
+            "difficulty": req.interview_config.difficulty,
             "total_rounds": req.interview_context.total_rounds,
             "interview_duration_seconds": req.interview_context.interview_duration_seconds,
-            "round_results": [item.model_dump() for item in req.round_results]
+            "round_results": _compact_round_results_for_report(req.round_results),
         }
         return await self._invoke_llm(self.prompts["report"], kwargs)

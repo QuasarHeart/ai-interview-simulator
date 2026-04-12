@@ -26,10 +26,14 @@ services:
     env_file:
       - .env.ml-service
     environment:
-      # Force 2.0 report bridge to hit 1.0 service through Docker network.
-      REPORT_API_URL: http://interview-api-v1:8000/api/v1/interview/report
+      - HTTP_PROXY=http://host.docker.internal:8276
+      - HTTPS_PROXY=http://host.docker.internal:8276
+      - NO_PROXY=localhost,127.0.0.1,interview-api-v1
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     depends_on:
       interview-api-v1:
         condition: service_healthy
@@ -37,9 +41,6 @@ services:
     networks:
       - ml_service
 
-
-
 networks:
   ml_service:
-    # 外部网络
     external: true
