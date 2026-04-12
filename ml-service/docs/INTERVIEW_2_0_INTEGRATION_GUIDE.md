@@ -60,7 +60,7 @@
 
 | 字段 | 是否必填 | 说明 | 默认值/规则 |
 |---|---|---|---|
-| `session_id` | 建议必填 | 业务侧会话 ID | 若与 `room.name` 不一致，运行时以 `room.name` 为准并告警 |
+| `session_id` | 建议必填 | 业务侧会话 ID | 若 `room.name` 只是 `room_<session_id>` 这类别名，运行时会自动归一化；若确实不同，运行时以 `session_id` 为准并告警 |
 | `job_position` | 建议必填 | 岗位 | 默认空字符串 |
 | `jd_summary` | 建议必填 | JD 摘要 | 默认空字符串 |
 | `resume_content` | 建议必填 | 简历摘要 | 默认空字符串 |
@@ -134,52 +134,9 @@
 - `pace_control`
   - 节奏/追问深度控制（静默应用，不额外发言）
 
-## 3.4 报告请求（2.0 -> 后端 1.0）
+## 3.4 报告回调（2.0 -> 后端）
 
-当阶段到 `end` 且有 `round_results` 时，2.0 会异步 POST 到：
-
-- `REPORT_API_URL`（默认 `http://127.0.0.1:8000/api/v1/interview/report`）
-
-请求体结构：
-
-```json
-{
-  "session_id": "sess-20260402-001",
-  "callback_url": "https://nas.feixingxr.com/api/v1/interviews/sess-20260402-001/report-callback",
-  "interview_config": {
-    "mode": "video",
-    "interviewer_style": "expert",
-    "difficulty": "hard",
-    "company_context": "电商交易场景"
-  },
-  "interview_context": {
-    "job_position": "Java后端工程师",
-    "jd_summary": "熟悉 Spring Boot、MySQL、Redis、消息队列",
-    "resume_content": "3年支付与交易系统经验",
-    "total_rounds": 6,
-    "interview_duration_seconds": 780
-  },
-  "round_results": [
-    {
-      "round_id": 1,
-      "current_stage": "intro",
-      "dimension_scores": {
-        "professional": 3.1,
-        "cognition": 3.0,
-        "expression": 3.2
-      },
-      "dimension_details": {
-        "professional": {},
-        "cognition": {},
-        "expression": {}
-      },
-      "overall_feedback": "...",
-      "final_score": 62.0,
-      "improvement_suggestions": ["..."]
-    }
-  ]
-}
-```
+当阶段到 `end` 且有 `round_results` 时，2.0 会在 worker 内部完成报告分析与生成，然后直接向 `REPORT_CALLBACK_URL_TEMPLATE` 对应地址发送最终回调。
 
 回调 URL 规则：
 - 模板来自 `REPORT_CALLBACK_URL_TEMPLATE`
@@ -206,9 +163,11 @@
   - `GEMINI_LANGUAGE`
   - `GEMINI_TEMPERATURE`
 - 报告评分模型
-  - `REPORT_MODEL`
+  - `REPORT_MODEL`，建议使用文本生成模型，例如 `gemini-3.1-flash-lite-preview`
+- 报告流水日志
+  - `REPORT_LOG_PIPELINE`，开启后打印 2.0 报告分析、生成、回调的详细流水日志，默认 `false`
+  - `REPORT_LOG_PIPELINE_MAX_CHARS`，流水日志内容截断长度，避免单条日志过长
 - 报告桥接
-  - `REPORT_API_URL`
   - `REPORT_CALLBACK_URL_TEMPLATE`
 
 如果跑 LiveKit Inference 评测：
@@ -268,8 +227,9 @@ conda run -n ml-service python app/agent.py dev
 
 1. 使用业务 `session_id` 创建 LiveKit room，建议 `room.name = session_id`
 2. 在 room metadata 放入 3.1 的 JSON
-3. 准备好 `POST /api/v1/interview/report` 接口
-4. 准备 report callback 接口，能按 `interviewId=session_id` 路由
+3. 准备 report callback 接口，能按 `interviewId=session_id` 路由
+
+说明：如果上游框架自动把房间名写成 `room_<session_id>`，运行时会自动把它归一化为业务 `session_id`，但仍建议后端创建房间时尽量直接使用同一个值。
 
 ## 5.2 前端步骤
 
@@ -304,7 +264,7 @@ conda run -n ml-service pytest -q
 - `_compute_dimension_scores` 异常输入
 - `close_session` 清理
 - 多命令顺序一致性
-- `report_api_url` 边界行为
+- `REPORT_CALLBACK_URL_TEMPLATE` 边界行为
 
 ## 6.2 官方风格行为评测（离线稳定）
 
@@ -359,8 +319,8 @@ conda run -n ml-service pytest -q
 处理：
 - 确认阶段是否进入 `end`
 - 确认 `round_results` 非空
-- 检查 `REPORT_API_URL` 可达
-- 查看日志 `Failed to dispatch report request`
+- 检查报告回调地址可达
+- 查看日志中 report callback 发送结果
 
 ## 8. 联调结论建议
 
@@ -403,10 +363,7 @@ docker run --rm -it \
 
 1. 确认容器内可访问 LiveKit 与 Google/Gemini 模型网关。
 2. room metadata 契约保持与 3.1 一致。
-3. 后端 report API 地址建议不要写 `127.0.0.1`，容器内应改成可达地址（例如宿主机域名、服务名或内网地址）。
-
-如果 report API 也在 Docker 网络里，建议：
-- `REPORT_API_URL=http://<service-name>:8000/api/v1/interview/report`
+3. 回调地址必须在容器内可达，建议使用宿主机域名、服务名或内网地址。
 
 ## 9.4 可选：本地调试模式
 
@@ -432,7 +389,7 @@ docker run --rm -it \
 
 该编排包含：
 - `interview-api-v1`：基于 `Dockerfile`，对外 `8000`
-- `interview-agent-v2`：基于 `Dockerfile.agent2`，内部通过服务名调用 1.0 报告接口
+- `interview-agent-v2`：基于 `Dockerfile.agent2`，负责 2.0 实时面试与报告回调
 
 ## 10.1 一键启动双版本
 
@@ -486,9 +443,9 @@ docker compose -f docker-compose.dual.yml down
 2. 职责不冲突：
   - 1.0 继续承载你现有 API 能力
   - 2.0 负责实时面试 runtime 和策略控制
-3. 报告桥接已打通：
-  - compose 中将 2.0 的 `REPORT_API_URL` 固定为
-  - `http://interview-api-v1:8000/api/v1/interview/report`
+3. 报告由 worker 内部生成并直接回调：
+  - 使用 `REPORT_CALLBACK_URL_TEMPLATE`
+    - 不再依赖单独的报告桥接地址
 
 ## 10.3 与 cloudflared 共存建议
 
@@ -533,57 +490,4 @@ docker compose -f docker-compose.dual.yml down
 2. 你清理了本地 Docker 构建缓存。
 3. 换了新机器或新 CI runner。
 
-## 12. 零联网离线构建（推荐 wheelhouse 方案）
-
-你这个需求可以实现，而且建议用 wheelhouse（本地 whl 仓库）而不是整包 `site-packages` 压缩。
-
-原因：
-1. 你当前环境 `site-packages` 体积很大（约 8.1G、5.9 万文件），压缩会非常慢。
-2. wheelhouse 只打包安装所需依赖，体积和耗时明显更可控。
-
-已新增文件：
-- `scripts/export_agent2_wheelhouse.sh`
-- `Dockerfile.agent2.offline`
-- `docker-compose.dual.offline.yml`
-
-## 12.1 第一步：导出离线 wheel 仓库
-
-```bash
-cd ml-service
-bash scripts/export_agent2_wheelhouse.sh ml-service
-```
-
-执行后会生成：
-- `docker/offline/wheels/`
-
-## 12.2 第二步：使用离线 compose 构建并启动
-
-```bash
-cd ml-service
-docker compose -f docker-compose.dual.offline.yml up -d --build
-```
-
-如果只是改了 2.0 代码，不改依赖：
-
-```bash
-docker compose -f docker-compose.dual.offline.yml build interview-agent-v2
-docker compose -f docker-compose.dual.offline.yml up -d interview-agent-v2
-```
-
-## 12.3 后续更新策略
-
-当你在本地 conda 环境里新增/升级了 2.0 依赖时：
-1. 重新执行导出脚本生成新 wheel 仓库
-2. 再执行离线 compose build
-
-平时不改依赖时，直接：
-
-```bash
-docker compose -f docker-compose.dual.offline.yml up -d
-```
-
-## 12.4 注意事项
-
-1. 该方案与当前机器架构、Python 主版本绑定（当前是 py3.11）。
-2. 若换机器或 Python 版本变化，需要重新导出 wheel 仓库。
 3. 若个别包无 wheel（极少数），会在导出或安装阶段暴露出来，再单独处理。

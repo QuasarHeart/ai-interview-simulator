@@ -1,17 +1,20 @@
+"""version 2.0 official workflow"""
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import os
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 from jinja2 import Environment, StrictUndefined
 
-from livekit.agents import Agent, AgentTask, llm
+from livekit.agents import Agent, AgentTask, CloseReason, llm
 from livekit.agents.beta.workflows import TaskCompletedEvent, TaskGroup
 
 try:
@@ -22,7 +25,67 @@ except ModuleNotFoundError:
 logger = logging.getLogger("ml-service.official_workflow")
 _OFFICIAL_PROMPT_DIR = Path(__file__).resolve().parent / "prompts" / "official"
 
+_TRACE_LOG_DETAIL = (
+    os.getenv("INTERVIEW_TRACE_LOG_DETAIL")
+    or os.getenv("OFFICIAL_TRACE_LOG_DETAIL")
+    or "false"
+).strip().lower() in {"1", "true", "yes", "on"}
+_TRACE_LOG_MAX_CHARS = max(
+    256,
+    int(
+        os.getenv(
+            "INTERVIEW_TRACE_LOG_MAX_CHARS",
+            os.getenv("OFFICIAL_TRACE_LOG_MAX_CHARS", "8000"),
+        )
+    ),
+)
+
 STAGE_ORDER = ["intro", "resume_deep_dive", "tech_general", "tech_scenario", "reverse_qa", "end"]
+
+
+def _trace_json_default(value: Any) -> Any:
+    if is_dataclass(value):
+        return asdict(cast(Any, value))
+    if hasattr(value, "model_dump"):
+        try:
+            dumped = value.model_dump()
+            if isinstance(dumped, dict):
+                return dumped
+        except Exception:
+            pass
+    return str(value)
+
+
+def _trace_value(value: Any, max_chars: int = _TRACE_LOG_MAX_CHARS) -> str:
+    if callable(value):
+        try:
+            value = value()
+        except Exception as exc:  # pragma: no cover - defensive trace helper
+            value = f"<trace-callable-error:{exc}>"
+
+    if value is None:
+        text = "null"
+    elif isinstance(value, str):
+        text = value
+    else:
+        try:
+            text = json.dumps(value, ensure_ascii=False, default=_trace_json_default)
+        except Exception:
+            text = str(value)
+
+    if max_chars > 0 and len(text) > max_chars:
+        return f"{text[:max_chars]}...(truncated)"
+    return text
+
+
+def _trace_log(event: str, **fields: Any) -> None:
+    if not _TRACE_LOG_DETAIL:
+        return
+
+    parts = [f"[Workflow-Trace] event={event}"]
+    for key, value in fields.items():
+        parts.append(f"{key}={_trace_value(value)}")
+    logger.info(" ".join(parts))
 
 STAGE_CONFIG: dict[str, dict[str, Any]] = {
     "intro": {
@@ -166,11 +229,13 @@ class PromptDoc:
 class OfficialPromptRegistry:
     def __init__(self) -> None:
         self._env = Environment(undefined=StrictUndefined)
+        _trace_log("prompt_registry_init", prompt_root=str(_OFFICIAL_PROMPT_DIR))
         self.agent_persona = self._load(_OFFICIAL_PROMPT_DIR / "agent_persona_v1.yaml")
         self.stage_control = self._load(_OFFICIAL_PROMPT_DIR / "stage_control_v1.yaml")
         self.turn_correction = self._load(_OFFICIAL_PROMPT_DIR / "turn_correction_v1.yaml")
 
     def _load(self, path: Path) -> PromptDoc:
+        _trace_log("prompt_load", path=str(path))
         with path.open("r", encoding="utf-8") as handle:
             data = yaml.safe_load(handle)
         return PromptDoc(
@@ -185,10 +250,18 @@ class OfficialPromptRegistry:
         rules = self._env.from_string(doc.rules).render(**kwargs)
         fmt = self._env.from_string(doc.format_requirements).render(**kwargs)
         input_context = self._env.from_string(doc.input_context).render(**kwargs)
+        _trace_log(
+            "prompt_render",
+            kwargs=kwargs,
+            system_role=system_role,
+            rules=rules,
+            format_requirements=fmt,
+            input_context=input_context,
+        )
         return "\n\n".join(part for part in [system_role, rules, fmt, input_context] if part.strip())
 
     def render_agent_persona(self, context: InterviewContext) -> str:
-        return self._render(
+        rendered = self._render(
             self.agent_persona,
             session_id=context.session_id,
             metadata_source=context.metadata_source,
@@ -200,10 +273,12 @@ class OfficialPromptRegistry:
             company_context=context.company_context,
             mode=context.mode,
         )
+        _trace_log("prompt_render_agent_persona", session_id=context.session_id, prompt=rendered)
+        return rendered
 
     def render_stage_control(self, context: InterviewContext, stage_name: str) -> str:
         stage_cfg = STAGE_CONFIG[stage_name]
-        return self._render(
+        rendered = self._render(
             self.stage_control,
             session_id=context.session_id,
             metadata_source=context.metadata_source,
@@ -221,6 +296,8 @@ class OfficialPromptRegistry:
             max_turns=stage_cfg["max_turns"],
             turn_index=1,
         )
+        _trace_log("prompt_render_stage_control", session_id=context.session_id, stage_name=stage_name, prompt=rendered)
+        return rendered
 
     def render_turn_correction(
         self,
@@ -235,7 +312,7 @@ class OfficialPromptRegistry:
     ) -> str:
         next_stage = _get_next_stage(stage_name)
         stage_transition = "end" if stage_name == "end" else ("end" if stage_name == "reverse_qa" and no_more_questions else "continue")
-        return self._render(
+        rendered = self._render(
             self.turn_correction,
             session_id=context.session_id,
             metadata_source=context.metadata_source,
@@ -255,6 +332,18 @@ class OfficialPromptRegistry:
             history_summary=history_summary,
             no_more_questions=str(no_more_questions).lower(),
         )
+        _trace_log(
+            "prompt_render_turn_correction",
+            session_id=context.session_id,
+            stage_name=stage_name,
+            turn_index=turn_index,
+            question=question,
+            user_answer=user_answer,
+            history_summary=history_summary,
+            no_more_questions=no_more_questions,
+            prompt=rendered,
+        )
+        return rendered
 
 
 @dataclass
@@ -330,6 +419,14 @@ def _build_history_summary(turn_ctx: llm.ChatContext) -> str:
     return "\n".join(lines)
 
 
+def _is_expected_workflow_cancellation(exc: BaseException, stop_requested: bool) -> bool:
+    if stop_requested:
+        return True
+    if not isinstance(exc, llm.ToolError):
+        return False
+    return "cancel" in str(exc).lower()
+
+
 class InterviewStageTask(AgentTask[StageResult]):
     def __init__(
         self,
@@ -343,6 +440,12 @@ class InterviewStageTask(AgentTask[StageResult]):
         self._turns = 0
         self._turn_records: list[StageTurnRecord] = []
         self._stage_cfg = STAGE_CONFIG[stage_name]
+        _trace_log(
+            "stage_task_init",
+            session_id=self._context.session_id,
+            stage_name=self._stage_name,
+            stage_cfg=self._stage_cfg,
+        )
         super().__init__(instructions=self._prompts.render_stage_control(self._context, stage_name))
 
     async def on_enter(self) -> None:
@@ -350,13 +453,23 @@ class InterviewStageTask(AgentTask[StageResult]):
             job_position=self._context.job_position or "岗位",
             company_context=self._context.company_context,
         )
-        logger.info(
-            "stage_enter session=%s stage=%s turns=%s",
-            self._context.session_id,
-            self._stage_name,
-            self._turns,
+        _trace_log(
+            "stage_enter",
+            session_id=self._context.session_id,
+            stage_name=self._stage_name,
+            turns=self._turns,
+            opening_text=opening_text,
+            stage_focus=self._stage_cfg["focus"],
         )
         if self._stage_name == "end":
+            _trace_log(
+                "stage_complete_requested",
+                session_id=self._context.session_id,
+                stage_name=self._stage_name,
+                turns=self._turns,
+                reason="closing_stage",
+                next_stage="end",
+            )
             self.session.generate_reply(instructions=opening_text)
             self.complete(
                 StageResult(
@@ -371,6 +484,15 @@ class InterviewStageTask(AgentTask[StageResult]):
             )
             return
 
+        _trace_log(
+            "stage_enter_reply_requested",
+            session_id=self._context.session_id,
+            stage_name=self._stage_name,
+            instructions=(
+                f"{opening_text} "
+                f"Follow the current stage strictly: {self._stage_cfg['focus']}"
+            ),
+        )
         self.session.generate_reply(
             instructions=(
                 f"{opening_text} "
@@ -384,11 +506,33 @@ class InterviewStageTask(AgentTask[StageResult]):
             company_context=self._context.company_context,
         )
         self._turns += 1
-        answer = (new_message.text_content or "").strip()
+        raw_answer = new_message.text_content or ""
+        answer = raw_answer.strip()
         question = _extract_last_assistant_message(turn_ctx, opening_text)
         history_summary = _build_history_summary(turn_ctx)
+        _trace_log(
+            "stage_user_turn_received",
+            session_id=self._context.session_id,
+            stage_name=self._stage_name,
+            turns=self._turns,
+            raw_answer=raw_answer,
+            answer=answer,
+            question=question,
+            history_summary=history_summary,
+            chat_items=list(getattr(turn_ctx, "items", []) or []),
+        )
         stop_requested = _candidate_wants_to_stop(answer)
         no_more_questions = self._stage_name == "reverse_qa" and _no_more_questions(answer)
+        next_stage = _get_next_stage(self._stage_name)
+        _trace_log(
+            "stage_turn_decision",
+            session_id=self._context.session_id,
+            stage_name=self._stage_name,
+            turns=self._turns,
+            stop_requested=stop_requested,
+            no_more_questions=no_more_questions,
+            next_stage=next_stage,
+        )
 
         if stop_requested:
             self._turn_records.append(
@@ -400,12 +544,20 @@ class InterviewStageTask(AgentTask[StageResult]):
                     history_summary=history_summary,
                 )
             )
-            logger.info(
-                "stage_stop_requested session=%s stage=%s turns=%s answer=%s",
-                self._context.session_id,
-                self._stage_name,
-                self._turns,
-                answer[:120],
+            _trace_log(
+                "stage_stop_requested",
+                session_id=self._context.session_id,
+                stage_name=self._stage_name,
+                turns=self._turns,
+                answer=answer,
+            )
+            _trace_log(
+                "stage_complete_requested",
+                session_id=self._context.session_id,
+                stage_name=self._stage_name,
+                turns=self._turns,
+                reason="candidate_ended_interview",
+                next_stage=next_stage,
             )
             self.complete(
                 StageResult(
@@ -431,6 +583,13 @@ class InterviewStageTask(AgentTask[StageResult]):
         )
         if correction_note.strip():
             turn_ctx.add_message(role="system", content=correction_note)
+        _trace_log(
+            "stage_turn_correction_applied",
+            session_id=self._context.session_id,
+            stage_name=self._stage_name,
+            turns=self._turns,
+            correction_note=correction_note,
+        )
         self._turn_records.append(
             StageTurnRecord(
                 stage=self._stage_name,
@@ -440,15 +599,24 @@ class InterviewStageTask(AgentTask[StageResult]):
                 history_summary=history_summary,
             )
         )
-        logger.info(
-            "stage_turn session=%s stage=%s turns=%s answer=%s",
-            self._context.session_id,
-            self._stage_name,
-            self._turns,
-            answer[:120],
+        _trace_log(
+            "stage_turn_recorded",
+            session_id=self._context.session_id,
+            stage_name=self._stage_name,
+            turns=self._turns,
+            turn_record=self._turn_records[-1],
+            turn_records=list(self._turn_records),
         )
 
         if no_more_questions:
+            _trace_log(
+                "stage_complete_requested",
+                session_id=self._context.session_id,
+                stage_name=self._stage_name,
+                turns=self._turns,
+                reason="candidate_has_no_questions",
+                next_stage=next_stage,
+            )
             self.complete(
                 StageResult(
                     stage=self._stage_name,
@@ -463,6 +631,14 @@ class InterviewStageTask(AgentTask[StageResult]):
             return
 
         if self._turns >= self._stage_cfg["max_turns"]:
+            _trace_log(
+                "stage_complete_requested",
+                session_id=self._context.session_id,
+                stage_name=self._stage_name,
+                turns=self._turns,
+                reason="turn_limit_reached",
+                next_stage=next_stage,
+            )
             self.complete(
                 StageResult(
                     stage=self._stage_name,
@@ -481,21 +657,101 @@ class InterviewWorkflowAgent(Agent):
         super().__init__(instructions=prompts.render_agent_persona(interview_context))
         self._context = interview_context
         self._prompts = prompts
-        self._report_service = OfficialReportService()
         self._latest_stage_results: list[StageResult] = []
         self._task_group: TaskGroup | None = None
+        self._report_task: asyncio.Task[None] | None = None
         self._stop_requested = False
+        _trace_log("workflow_agent_init", context=interview_context)
 
     def _request_stop(self) -> None:
         self._stop_requested = True
+        _trace_log("workflow_stop_requested", session_id=self._context.session_id, task_group_present=self._task_group is not None)
         if self._task_group is not None:
             self._task_group.cancel()
 
+    def _clear_report_task_reference(self, task: asyncio.Task[None]) -> None:
+        if self._report_task is task:
+            self._report_task = None
+            _trace_log("report_task_reference_cleared", session_id=self._context.session_id)
+
+    async def _run_report_job(self, stage_results: list[StageResult]) -> None:
+        report_service = OfficialReportService()
+        try:
+            _trace_log("report_job_started", session_id=self._context.session_id, stage_results=stage_results)
+            logger.info(
+                "report_job_started session=%s stage_results=%s",
+                self._context.session_id,
+                len(stage_results),
+            )
+            report_result = await report_service.generate_and_callback(self._context, stage_results)
+            _trace_log("report_job_completed", session_id=self._context.session_id, report_result=report_result)
+            logger.info(
+                "report_job_completed session=%s status=%s callback_url=%s",
+                self._context.session_id,
+                report_result.get("status"),
+                report_result.get("callback_url"),
+            )
+        except asyncio.CancelledError:
+            _trace_log("report_job_cancelled", session_id=self._context.session_id)
+            logger.warning("report_job_cancelled session=%s", self._context.session_id)
+            return
+        except Exception:
+            _trace_log("report_job_failed", session_id=self._context.session_id)
+            logger.exception("report_job_failed session=%s", self._context.session_id)
+        finally:
+            _trace_log("report_job_service_close", session_id=self._context.session_id)
+            await report_service.aclose()
+
+    def _start_report_job(self, stage_results: list[StageResult]) -> None:
+        if self._report_task is not None and not self._report_task.done():
+            _trace_log("report_job_already_running", session_id=self._context.session_id, report_task=self._report_task)
+            logger.warning("report_job_already_running session=%s", self._context.session_id)
+            return
+
+        self._report_task = asyncio.create_task(self._run_report_job(list(stage_results)))
+        self._report_task.add_done_callback(self._clear_report_task_reference)
+        _trace_log("report_job_started_background", session_id=self._context.session_id, report_task=self._report_task, stage_results=stage_results)
+
+    def _request_session_close_before_report(self) -> None:
+        try:
+            session = self.session
+        except RuntimeError:
+            session = None
+
+        close_soon = getattr(session, "_close_soon", None)
+        if callable(close_soon):
+            _trace_log("workflow_room_close_requested", session_id=self._context.session_id, reason=CloseReason.TASK_COMPLETED.value)
+            logger.info(
+                "workflow_room_close_requested session=%s reason=%s",
+                self._context.session_id,
+                CloseReason.TASK_COMPLETED.value,
+            )
+            close_soon(reason=CloseReason.TASK_COMPLETED)
+            return
+
+        aclose = getattr(session, "aclose", None)
+        if callable(aclose):
+            _trace_log("workflow_room_close_fallback", session_id=self._context.session_id, reason="session_missing_close_soon")
+            logger.warning(
+                "workflow_room_close_fallback session=%s reason=session_missing_close_soon",
+                self._context.session_id,
+            )
+            close_result = aclose()
+            if asyncio.iscoroutine(close_result):
+                asyncio.create_task(close_result)
+
     async def _on_task_completed(self, event: TaskCompletedEvent) -> None:
         result = event.result
+        _trace_log("workflow_task_completed", session_id=self._context.session_id, result=result)
         if isinstance(result, StageResult):
             if result.stage != "end":
                 self._latest_stage_results.append(result)
+            _trace_log(
+                "workflow_stage_result_recorded",
+                session_id=self._context.session_id,
+                stage_result=result,
+                latest_stage_results=list(self._latest_stage_results),
+            )
             logger.info(
                 "stage_completed session=%s stage=%s turns=%s reason=%s summary=%s",
                 self._context.session_id,
@@ -504,7 +760,15 @@ class InterviewWorkflowAgent(Agent):
                 result.completed_reason,
                 result.history_summary[:120],
             )
+            logger.info(
+                "stage_transition session=%s from_stage=%s to_stage=%s reason=%s",
+                self._context.session_id,
+                result.stage,
+                _get_next_stage(result.stage),
+                result.completed_reason,
+            )
             if result.completed_reason == "candidate_ended_interview":
+                _trace_log("workflow_candidate_requested_stop", session_id=self._context.session_id, stage=result.stage)
                 logger.info(
                     "workflow_stop_requested session=%s stage=%s",
                     self._context.session_id,
@@ -513,6 +777,7 @@ class InterviewWorkflowAgent(Agent):
                 self._request_stop()
 
     async def on_enter(self) -> None:
+        _trace_log("workflow_start", session_id=self._context.session_id, stage_order=STAGE_ORDER)
         logger.info(
             "workflow_start session=%s stage_order=%s",
             self._context.session_id,
@@ -522,6 +787,7 @@ class InterviewWorkflowAgent(Agent):
         self._task_group = task_group
         for stage_name in STAGE_ORDER:
             stage_description = STAGE_CONFIG[stage_name]["description"]
+            _trace_log("workflow_stage_task_added", session_id=self._context.session_id, stage_name=stage_name, stage_description=stage_description)
             task_group.add(
                 lambda stage_name=stage_name: InterviewStageTask(stage_name, self._context, self._prompts),
                 id=stage_name,
@@ -530,19 +796,34 @@ class InterviewWorkflowAgent(Agent):
 
         results = None
         try:
+            _trace_log("workflow_task_group_await_start", session_id=self._context.session_id)
             results = await task_group
+            _trace_log("workflow_task_group_await_done", session_id=self._context.session_id, results=results)
             logger.info(
                 "workflow_complete session=%s task_ids=%s",
                 self._context.session_id,
                 list(results.task_results.keys()),
             )
+        except llm.ToolError as exc:
+            _trace_log("workflow_tool_error", session_id=self._context.session_id, stop_requested=self._stop_requested, error=str(exc))
+            if _is_expected_workflow_cancellation(exc, self._stop_requested):
+                logger.info(
+                    "workflow_cancelled session=%s stop_requested=%s reason=%s",
+                    self._context.session_id,
+                    self._stop_requested,
+                    exc,
+                )
+            else:
+                raise
         except asyncio.CancelledError:
+            _trace_log("workflow_cancelled", session_id=self._context.session_id, stop_requested=self._stop_requested)
             logger.info(
                 "workflow_cancelled session=%s stop_requested=%s",
                 self._context.session_id,
                 self._stop_requested,
             )
         finally:
+            _trace_log("workflow_task_group_cleared", session_id=self._context.session_id)
             self._task_group = None
 
         if results is not None:
@@ -553,17 +834,17 @@ class InterviewWorkflowAgent(Agent):
             ]
             if ordered_stage_results:
                 self._latest_stage_results = [result for result in ordered_stage_results if isinstance(result, StageResult)]
+            _trace_log("workflow_latest_stage_results_ready", session_id=self._context.session_id, latest_stage_results=list(self._latest_stage_results))
 
-        try:
-            report_result = await self._report_service.generate_and_callback(self._context, self._latest_stage_results)
-            logger.info(
-                "report_generated session=%s status=%s callback_url=%s",
-                self._context.session_id,
-                report_result.get("status"),
-                report_result.get("callback_url"),
-            )
-        finally:
-            await self.session.aclose()
+        self._request_session_close_before_report()
+        self._start_report_job(list(self._latest_stage_results))
+        _trace_log("workflow_report_job_kicked_off", session_id=self._context.session_id, latest_stage_results=list(self._latest_stage_results))
 
     async def on_exit(self) -> None:
-        await self._report_service.aclose()
+        _trace_log("workflow_on_exit", session_id=self._context.session_id, report_task=self._report_task)
+        if self._report_task is not None and not self._report_task.done():
+            logger.info(
+                "report_job_detached session=%s task_done=%s",
+                self._context.session_id,
+                self._report_task.done(),
+            )
