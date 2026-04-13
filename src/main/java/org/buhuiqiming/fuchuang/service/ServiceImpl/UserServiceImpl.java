@@ -190,8 +190,7 @@ public class UserServiceImpl implements UserService {
         }
 
         ResumeAnalysisVO vo = new ResumeAnalysisVO();
-        vo.setResumeContent(dto.getResumeContent());
-        vo.setOverallScore(dto.getOverallScore());
+        vo.setOverallScore(dto.getOverall_score());
 
         // 解析JSON字符串为列表
         try {
@@ -223,7 +222,6 @@ public class UserServiceImpl implements UserService {
      */
     @Data
     public static class ResumeAnalysisVO {
-        private String resumeContent;
         private List<String> strengths;
         private List<String> weaknesses;
         private List<String> suggestions;
