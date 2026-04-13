@@ -743,7 +743,6 @@ public class InterviewServiceImpl implements InterviewService {
 
     @Override
     public void handleInterviewReportCallback(String interviewId, GenerateReportResponse response){
-
         if (response == null) {
             log.error("面试报告回调失败: 响应体为空, interviewId: {}", interviewId);
             throw new ServiceException(400, "回调响应体不能为空");
@@ -759,7 +758,49 @@ public class InterviewServiceImpl implements InterviewService {
             interview.setExecutiveSummary(response.getExecutiveSummary());
             interview.setDetailedRecommendation(response.getDetailedRecommendation());
 
+            // 2.0 对应评分维度对应实现
+            if (response.getProfessional() != null || response.getCognition() != null || response.getExpression() != null) {
+                log.info("回调中包含各维度评价详情，直接映射数据, interviewId: {}", interviewId);
+                TurnEvaluationResult totalEval = new TurnEvaluationResult();
+                totalEval.setFinalScore(response.getOverallScore());
+
+                // 映射 Professional
+                if (response.getProfessional() != null) {
+                    TurnEvaluationResult.ProfessionalDetails prof = new TurnEvaluationResult.ProfessionalDetails();
+                    prof.setTechnicalCorrectness(mapReportMetricDetail(response.getProfessional().getTechnicalCorrectness()));
+                    prof.setKnowledgeMatch(mapReportMetricDetail(response.getProfessional().getKnowledgeMatch()));
+                    prof.setJobMatch(mapReportMetricDetail(response.getProfessional().getJobMatch()));
+                    prof.setEngineeringPractice(mapReportMetricDetail(response.getProfessional().getEngineeringPractice()));
+                    totalEval.setProfessional(prof);
+                }
+
+                // 映射 Cognition
+                if (response.getCognition() != null) {
+                    TurnEvaluationResult.CognitionDetails cog = new TurnEvaluationResult.CognitionDetails();
+                    cog.setLogicStructure(mapReportMetricDetail(response.getCognition().getLogicStructure()));
+                    cog.setProblemSolving(mapReportMetricDetail(response.getCognition().getProblemSolving()));
+                    cog.setSystemThinking(mapReportMetricDetail(response.getCognition().getSystemThinking()));
+                    totalEval.setCognition(cog);
+                }
+
+                // 映射 Expression
+                if (response.getExpression() != null) {
+                    TurnEvaluationResult.ExpressionDetails exp = new TurnEvaluationResult.ExpressionDetails();
+                    exp.setClarity(mapReportMetricDetail(response.getExpression().getClarity()));
+                    exp.setConfidenceStability(mapReportMetricDetail(response.getExpression().getConfidenceStability()));
+                    exp.setProfessionalMaturity(mapReportMetricDetail(response.getExpression().getProfessionalMaturity()));
+                    totalEval.setExpression(exp);
+                }
+
+                interview.setTotalEvaluation(totalEval);
+
+            }
+
+            // ToDo 这里用以区分 1.0 和 2.0 的是面试轮次具体内容的记录是否存在，
+            //  目前由于2.0 中后端不进行具体记录（具体需求实现为音视频？），所以具体轮次记录为空。
+            //  但是事实上最好还是分开新建接口实现，不过如果需求不变动的话，目前应该就是最高效的，加个提醒而已。
             List<InterviewTurnsEntity> turnsEntities = interviewTurnsRepository.findByInterviewIdOrderByTurnNumberAsc(interviewId);
+            log.info("当前面试会话具体轮次是否为空: {}", (turnsEntities != null));
             if (turnsEntities != null && !turnsEntities.isEmpty()) {
                 log.info("开始计算面试平均评价, interviewId: {}, 总轮次: {}", interviewId, turnsEntities.size());
                 TurnEvaluationResult averageEvaluation = calculateAverageEvaluation(turnsEntities);
@@ -777,6 +818,19 @@ public class InterviewServiceImpl implements InterviewService {
             log.error("处理面试报告回调时发生未知异常, interviewId: {}", interviewId, e);
             throw new ServiceException(500, "处理面试报告回调异常");
         }
+    }
+
+    /**
+     * 辅助方法：将 GenerateReportResponse 中的 MetricDetail 映射为 TurnEvaluationResult 需要的 MetricDetail
+     */
+    private TurnEvaluationResult.MetricDetail mapReportMetricDetail(GenerateReportResponse.MetricDetail source) {
+        if (source == null) {
+            return null;
+        }
+        TurnEvaluationResult.MetricDetail target = new TurnEvaluationResult.MetricDetail();
+        target.setScore(source.getScore());
+        target.setReason(source.getReason());
+        return target;
     }
 
     private TurnEvaluationResult calculateAverageEvaluation(List<InterviewTurnsEntity> turns) {
