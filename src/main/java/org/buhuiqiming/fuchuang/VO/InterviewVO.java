@@ -12,4 +12,5 @@ public class InterviewVO {
     private String interviewStatus;
     private float score; // 对应实体类里的 totalScore
     private String startTime;
+    private String jobInfo;
 }

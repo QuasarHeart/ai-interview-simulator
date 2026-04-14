@@ -175,8 +175,7 @@ public class InterviewController {
     @GetMapping("/growth-curve")
     public Result getGrowthCurve(@RequestParam("jobRole") String jobRole){
         Long currentUserId = UserContext.get();
-        GrowthCurveVO curve = interviewService.getGrowthCurve(currentUserId, jobRole);
-        return Result.success(curve);
+        return interviewService.getGrowthCurve(currentUserId, jobRole);
     }
     @GetMapping("/test")
     public Result test(@RequestParam String interviewId){
