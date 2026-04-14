@@ -7,6 +7,7 @@ import org.buhuiqiming.fuchuang.VO.ReportResultVO;
 import org.buhuiqiming.fuchuang.dto.CreateInterviewDTO;
 import org.buhuiqiming.fuchuang.dto.GenerateReportResponse;
 import org.buhuiqiming.fuchuang.dto.InterviewFollowByRequest;
+import org.buhuiqiming.fuchuang.dto.Result;
 import org.buhuiqiming.fuchuang.entity.jpa.InterviewEntity;
 import org.buhuiqiming.fuchuang.entity.jpa.InterviewTurnsEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -65,5 +66,5 @@ public interface InterviewService {
     // 尝试触发报告生成
     void tryTriggerReportGeneration(String interviewId);
 
-    GrowthCurveVO getGrowthCurve(Long userId, String jobRole);
+    Result getGrowthCurve(Long userId, String jobRole);
 }

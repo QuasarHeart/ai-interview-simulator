@@ -596,6 +596,7 @@ public class InterviewServiceImpl implements InterviewService {
             // 还在进行中的面试会话持续时间返回为 0
             interviewVO.setDuration(interview.getDuration() != null ? interview.getDuration().getSeconds() : 0L);
             interviewVO.setStartTime(getFormattedStartTime(interviewId));
+            interviewVO.setJobInfo(interview.getJobInfo());
 
             resultList.add(interviewVO);
         }
@@ -1066,13 +1067,13 @@ public class InterviewServiceImpl implements InterviewService {
     }
 
     @Override
-    public GrowthCurveVO getGrowthCurve(Long userId, String jobRole) {
+    public Result getGrowthCurve(Long userId, String jobRole) {
         // 1. 获取按时间正序排列的面试记录
         List<InterviewEntity> interviews = interviewRepository.findAllByUserIdAndJobRoleAndInterviewStatusOrderByCreateTimeAsc(userId, jobRole, "REPORTED");
 
         // 2. 判空处理，交由 GlobalExceptionHandler 处理返回给前端的 Result.error
         if (interviews == null || interviews.isEmpty()) {
-            throw new ServiceException(404, "该岗位暂无面试记录，无法生成成长曲线");
+            return Result.success(204, "该面试岗位暂无面试记录，无法生成成长曲线");
         }
 
         int interviewCount = interviews.size();
@@ -1186,7 +1187,7 @@ public class InterviewServiceImpl implements InterviewService {
                 .build();
 
         // 6. 组装最终的 VO 并返回
-        return GrowthCurveVO.builder()
+        GrowthCurveVO curve = GrowthCurveVO.builder()
                 .jobRole(jobRole)
                 .overallRating(overallRating)
                 .interviewCount(interviewCount)
@@ -1198,6 +1199,7 @@ public class InterviewServiceImpl implements InterviewService {
                 .dimensionScores(avgDimensionScores)
                 .dimensionDetails(avgDimensionDetails)
                 .build();
+        return Result.success(curve);
     }
 
     /**
