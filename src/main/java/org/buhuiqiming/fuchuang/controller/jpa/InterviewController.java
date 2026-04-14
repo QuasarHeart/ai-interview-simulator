@@ -1,7 +1,6 @@
 package org.buhuiqiming.fuchuang.controller.jpa;
 
 import lombok.extern.slf4j.Slf4j;
-import org.buhuiqiming.fuchuang.VO.GrowthCurveVO;
 import org.buhuiqiming.fuchuang.VO.InterviewTurnsVO;
 import org.buhuiqiming.fuchuang.VO.InterviewVO;
 import org.buhuiqiming.fuchuang.VO.ReportResultVO;

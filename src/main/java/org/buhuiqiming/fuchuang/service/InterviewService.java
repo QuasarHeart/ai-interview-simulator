@@ -1,6 +1,5 @@
 package org.buhuiqiming.fuchuang.service;
 
-import org.buhuiqiming.fuchuang.VO.GrowthCurveVO;
 import org.buhuiqiming.fuchuang.VO.InterviewVO;
 import org.buhuiqiming.fuchuang.VO.InterviewTurnsVO;
 import org.buhuiqiming.fuchuang.VO.ReportResultVO;
