@@ -20,7 +20,7 @@ from uuid import uuid4
 from dotenv import load_dotenv
 
 from livekit import agents, rtc
-from livekit.agents import AgentServer, AgentSession, room_io
+from livekit.agents import AgentServer, AgentSession, TurnHandlingOptions, room_io
 from google.genai import types as google_types
 import livekit.plugins.google as google
 
@@ -77,6 +77,20 @@ class ModelConfig:
     )
     google_enable_session_resumption: bool = (
         os.getenv("GOOGLE_ENABLE_SESSION_RESUMPTION", "true").strip().lower() in {"1", "true", "yes", "on"}
+    )
+    gemini_auto_activity_start_sensitivity: str = os.getenv(
+        "INTERVIEW_GEMINI_AUTO_ACTIVITY_START_SENSITIVITY",
+        "HIGH",
+    )
+    gemini_auto_activity_end_sensitivity: str = os.getenv(
+        "INTERVIEW_GEMINI_AUTO_ACTIVITY_END_SENSITIVITY",
+        "LOW",
+    )
+    gemini_auto_activity_prefix_padding_ms: int = int(
+        os.getenv("INTERVIEW_GEMINI_AUTO_ACTIVITY_PREFIX_PADDING_MS", "300")
+    )
+    gemini_auto_activity_silence_duration_ms: int = int(
+        os.getenv("INTERVIEW_GEMINI_AUTO_ACTIVITY_SILENCE_DURATION_MS", "1500")
     )
     interviewer_style: str = os.getenv("INTERVIEWER_STYLE", "standard")
     difficulty: str = os.getenv("INTERVIEW_DIFFICULTY", "medium")
@@ -155,6 +169,21 @@ def _build_google_realtime_model(config_obj: ModelConfig) -> google.realtime.Rea
     if config_obj.google_enable_session_resumption:
         model_kwargs["session_resumption"] = google_types.SessionResumptionConfig()
 
+    # Keep Gemini's built-in activity detection conservative so short pauses do not end the user's turn too early.
+    model_kwargs["realtime_input_config"] = google_types.RealtimeInputConfig(
+        automatic_activity_detection=google_types.AutomaticActivityDetection(
+            disabled=False,
+            start_of_speech_sensitivity=_resolve_google_start_sensitivity(
+                config_obj.gemini_auto_activity_start_sensitivity
+            ),
+            end_of_speech_sensitivity=_resolve_google_end_sensitivity(
+                config_obj.gemini_auto_activity_end_sensitivity
+            ),
+            prefix_padding_ms=config_obj.gemini_auto_activity_prefix_padding_ms,
+            silence_duration_ms=config_obj.gemini_auto_activity_silence_duration_ms,
+        )
+    )
+
     if not config_obj.google_use_vertexai and not config_obj.google_api_key:
         raise ValueError("GOOGLE_API_KEY 未配置，或未启用 GOOGLE_USE_VERTEXAI")
 
@@ -184,6 +213,38 @@ def _sanitize_mode(mode: Any, fallback: str) -> str:
     if value in MODE_SET:
         return value
     return fallback
+
+
+def _resolve_google_start_sensitivity(value: Any) -> google_types.StartSensitivity:
+    normalized = str(value or "").strip().upper()
+    if normalized in {"HIGH", "START_SENSITIVITY_HIGH"}:
+        return google_types.StartSensitivity.START_SENSITIVITY_HIGH
+    if normalized in {"LOW", "START_SENSITIVITY_LOW"}:
+        return google_types.StartSensitivity.START_SENSITIVITY_LOW
+    if normalized in {"UNSPECIFIED", "START_SENSITIVITY_UNSPECIFIED", ""}:
+        return google_types.StartSensitivity.START_SENSITIVITY_UNSPECIFIED
+
+    logger.warning(
+        "Invalid INTERVIEW_GEMINI_AUTO_ACTIVITY_START_SENSITIVITY=%s; falling back to START_SENSITIVITY_HIGH",
+        value,
+    )
+    return google_types.StartSensitivity.START_SENSITIVITY_HIGH
+
+
+def _resolve_google_end_sensitivity(value: Any) -> google_types.EndSensitivity:
+    normalized = str(value or "").strip().upper()
+    if normalized in {"HIGH", "END_SENSITIVITY_HIGH"}:
+        return google_types.EndSensitivity.END_SENSITIVITY_HIGH
+    if normalized in {"LOW", "END_SENSITIVITY_LOW"}:
+        return google_types.EndSensitivity.END_SENSITIVITY_LOW
+    if normalized in {"UNSPECIFIED", "END_SENSITIVITY_UNSPECIFIED", ""}:
+        return google_types.EndSensitivity.END_SENSITIVITY_UNSPECIFIED
+
+    logger.warning(
+        "Invalid INTERVIEW_GEMINI_AUTO_ACTIVITY_END_SENSITIVITY=%s; falling back to END_SENSITIVITY_LOW",
+        value,
+    )
+    return google_types.EndSensitivity.END_SENSITIVITY_LOW
 
 
 def _coerce_metadata_dict(raw_metadata: Any) -> dict[str, Any] | None:
@@ -352,6 +413,18 @@ def _build_room_options(session_profile: SessionProfile) -> room_io.RoomOptions:
     return room_options
 
 
+def _build_turn_handling_options() -> TurnHandlingOptions:
+    turn_handling = TurnHandlingOptions(
+        turn_detection="realtime_llm",
+        endpointing={
+            "min_delay": float(os.getenv("INTERVIEW_ENDPOINTING_MIN_DELAY", "4.0")),
+            "max_delay": float(os.getenv("INTERVIEW_ENDPOINTING_MAX_DELAY", "6.0")),
+        },
+    )
+    _trace_log("build_turn_handling_options_exit", turn_handling=turn_handling)
+    return turn_handling
+
+
 @server.rtc_session(agent_name="ai-interview-3")
 async def ai_interview_session(ctx: agents.JobContext) -> None:
     _trace_log(
@@ -390,7 +463,12 @@ async def ai_interview_session(ctx: agents.JobContext) -> None:
     prompts = OfficialPromptRegistry()
     workflow_agent = InterviewWorkflowAgent(interview_context=interview_context, prompts=prompts)
 
-    session = AgentSession(llm=_build_google_realtime_model(config))
+    session = AgentSession(
+        llm=_build_google_realtime_model(config),
+        turn_handling=_build_turn_handling_options(),
+        preemptive_generation=False,
+        min_consecutive_speech_delay=float(os.getenv("INTERVIEW_MIN_CONSECUTIVE_SPEECH_DELAY", "4.0")),
+    )
     room_options = _build_room_options(session_profile)
     _trace_log("ai_interview_session_before_start", room_options=room_options, interview_context=interview_context)
 
