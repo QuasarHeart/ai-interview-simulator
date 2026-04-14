@@ -10,20 +10,96 @@ import time
 from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import quote
 
+import httpx
+import google.genai as genai
 import yaml
 from jinja2 import Environment, StrictUndefined
 
-from livekit.agents import Agent, AgentTask, CloseReason, llm
-from livekit.agents.beta.workflows import TaskCompletedEvent, TaskGroup
-
-try:
-    from app.official_reporting import OfficialReportService
-except ModuleNotFoundError:
-    from official_reporting import OfficialReportService
+from livekit.agents import Agent, CloseReason, llm
 
 logger = logging.getLogger("ml-service.official_workflow")
-_OFFICIAL_PROMPT_DIR = Path(__file__).resolve().parent / "prompts" / "official"
+_DEFAULT_REPORT_CALLBACK_URL_TEMPLATE = "https://nas.feixingxr.com/api/v1/interviews/{interviewId}/report-callback"
+_REPORT_CALLBACK_MAX_ATTEMPTS = max(1, int(os.getenv("REPORT_CALLBACK_MAX_ATTEMPTS", "3")))
+_REPORT_REQUEST_TIMEOUT_SECONDS = max(1.0, float(os.getenv("REPORT_REQUEST_TIMEOUT_SECONDS", "20")))
+_REPORT_MODEL = (os.getenv("REPORT_MODEL", "gemini-2.5-flash-lite") or "gemini-2.5-flash-lite").strip()
+_REPORT_TEMPERATURE = float(os.getenv("REPORT_TEMPERATURE", "0.2"))
+_REPORT_MAX_OUTPUT_TOKENS = max(256, int(os.getenv("REPORT_MAX_OUTPUT_TOKENS", "4096")))
+
+_REPORT_SCORE_REASON_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "reason": {"type": "string"},
+        "score": {"type": "number", "minimum": 0, "maximum": 5, "multipleOf": 0.5},
+    },
+    "required": ["reason", "score"],
+    "additionalProperties": False,
+}
+
+_REPORT_DIMENSION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "technical_correctness": _REPORT_SCORE_REASON_SCHEMA,
+        "knowledge_match": _REPORT_SCORE_REASON_SCHEMA,
+        "job_match": _REPORT_SCORE_REASON_SCHEMA,
+        "engineering_practice": _REPORT_SCORE_REASON_SCHEMA,
+    },
+    "required": ["technical_correctness", "knowledge_match", "job_match", "engineering_practice"],
+    "additionalProperties": False,
+}
+
+_REPORT_COGNITION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "logic_structure": _REPORT_SCORE_REASON_SCHEMA,
+        "problem_solving": _REPORT_SCORE_REASON_SCHEMA,
+        "system_thinking": _REPORT_SCORE_REASON_SCHEMA,
+    },
+    "required": ["logic_structure", "problem_solving", "system_thinking"],
+    "additionalProperties": False,
+}
+
+_REPORT_EXPRESSION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "clarity": _REPORT_SCORE_REASON_SCHEMA,
+        "confidence_stability": _REPORT_SCORE_REASON_SCHEMA,
+        "professional_maturity": _REPORT_SCORE_REASON_SCHEMA,
+    },
+    "required": ["clarity", "confidence_stability", "professional_maturity"],
+    "additionalProperties": False,
+}
+
+_REPORT_RESPONSE_JSON_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "hiring_recommendation": {
+            "type": "string",
+            "enum": ["Strong Hire", "Hire", "Weak Hire", "No Hire"],
+        },
+        "executive_summary": {"type": "string"},
+        "strengths": {"type": "array", "items": {"type": "string"}},
+        "weaknesses": {"type": "array", "items": {"type": "string"}},
+        "ability_trend": {"type": "string"},
+        "detailed_recommendation": {"type": "string"},
+        "professional": _REPORT_DIMENSION_SCHEMA,
+        "cognition": _REPORT_COGNITION_SCHEMA,
+        "expression": _REPORT_EXPRESSION_SCHEMA,
+    },
+    "required": [
+        "hiring_recommendation",
+        "executive_summary",
+        "strengths",
+        "weaknesses",
+        "ability_trend",
+        "detailed_recommendation",
+        "professional",
+        "cognition",
+        "expression",
+    ],
+    "additionalProperties": False,
+}
 
 _TRACE_LOG_DETAIL = (
     os.getenv("INTERVIEW_TRACE_LOG_DETAIL")
@@ -39,8 +115,6 @@ _TRACE_LOG_MAX_CHARS = max(
         )
     ),
 )
-
-STAGE_ORDER = ["intro", "resume_deep_dive", "tech_general", "tech_scenario", "reverse_qa", "end"]
 
 
 def _trace_json_default(value: Any) -> Any:
@@ -87,297 +161,126 @@ def _trace_log(event: str, **fields: Any) -> None:
         parts.append(f"{key}={_trace_value(value)}")
     logger.info(" ".join(parts))
 
-STAGE_CONFIG: dict[str, dict[str, Any]] = {
-    "intro": {
-        "min_turns": 1,
-        "max_turns": 2,
-        "description": "开场与背景确认",
-        "goal": "先完成简短身份确认，再引导候选人自我介绍，然后切入岗位和候选人背景。",
-        "opening": "先用一句很短的话完成面试官身份确认，点出当前是 {job_position} 岗位面试，并自然带到公司文化；然后马上给候选人一个明确的问题，让他先自我介绍，重点说清最近做过什么和最有代表性的项目。不要停在话题描述上，也不要使用固定模板化台词。",
-        "focus": "先让候选人自我介绍，再结合岗位、简历和最近项目快速建立面试信号，避免空泛开场。",
-    },
-    "resume_deep_dive": {
-        "min_turns": 1,
-        "max_turns": 3,
-        "description": "项目深挖",
-        "goal": "围绕最近项目、职责和技术取舍深挖。",
-        "opening": "围绕候选人最近项目深挖，先从简历里挑一个具体项目或职责点，马上提出一个具体问题，追问职责、难点、结果或取舍，不要只说要深挖。",
-        "focus": "把候选人的项目背景、规模、职责和结果问清楚。",
-    },
-    "tech_general": {
-        "min_turns": 1,
-        "max_turns": 3,
-        "description": "通用技术追问",
-        "goal": "围绕岗位核心技术点追问基础原理和关键知识。",
-        "opening": "围绕岗位要求，先选一个具体技术点，马上提出一个基础原理、关键机制或常见取舍的具体问题，不要只概括方向。",
-        "focus": "确认候选人对岗位关键技术点是否真正理解。",
-    },
-    "tech_scenario": {
-        "min_turns": 1,
-        "max_turns": 3,
-        "description": "场景与权衡",
-        "goal": "围绕复杂场景、边界条件和系统权衡追问。",
-        "opening": "给出一个更复杂的场景，并马上提出一个具体问题，追问边界条件、异常处理、性能瓶颈或系统取舍，不要只说要讨论场景。",
-        "focus": "看候选人是否能在真实约束下做出判断。",
-    },
-    "reverse_qa": {
-        "min_turns": 1,
-        "max_turns": 2,
-        "description": "候选人反问",
-        "goal": "留出候选人反问并进行简洁回答。",
-        "opening": "现在留给你反问时间，如果没有问题也可以直接说没有了。",
-        "focus": "回答候选人的问题并准备收尾。",
-    },
-    "end": {
-        "min_turns": 0,
-        "max_turns": 0,
-        "description": "结束语",
-        "goal": "自然结束本轮面试。",
-        "opening": "感谢你的时间，今天的面试先到这里。",
-        "focus": "礼貌收尾，不再展开新问题。",
-    },
-}
 
+@dataclass(slots=True)
+class Settings:
+    professional_weight: float = 0.5
+    cognition_weight: float = 0.3
+    expression_weight: float = 0.2
 
-def _get_next_stage(stage_name: str) -> str:
-    try:
-        current_index = STAGE_ORDER.index(stage_name)
-    except ValueError:
-        return "end"
-    if current_index + 1 < len(STAGE_ORDER):
-        return STAGE_ORDER[current_index + 1]
-    return "end"
-
-
-def _no_more_questions(text: str) -> bool:
-    normalized = _compact_text(text)
-    if not normalized:
-        return False
-    markers = {
-        "没问题了",
-        "没有问题了",
-        "没有了",
-        "暂时没有了",
-        "先没有了",
-        "就这些",
-        "没啥了",
-        "不用了",
-        "noquestions",
-        "nomorequestions",
-        "nothing",
-        "none",
-    }
-    return any(marker in normalized for marker in markers)
-
-
-def _candidate_wants_to_stop(text: str) -> bool:
-    normalized = _compact_text(text)
-    if not normalized:
-        return False
-
-    explicit_patterns = (
-        r"(?:我|我们)?(?:不想|不要|暂时不|没必要|不打算|不准备)(?:再|继续)?(?:面试|聊|继续聊|继续问|问了)",
-        r"(?:别(?:再)?)(?:面试|聊|继续聊|继续问|问了)(?:了|吧|啊|呀|嘛)",
-        r"(?:结束|停止|终止|退出|中止|打住|算了)(?:面试|这次面试|本次面试|今天的面试|这轮面试|这次聊)?",
-        r"(?:先|今天|这次|暂时)?(?:到这|到此为止|就这样|先这样|先到这里|就先这样|先结束吧|就先到这里|不聊了|不面了|不面试了)",
-        r"(?:下次|改天|以后)(?:再|再说|再聊|再面|继续)?",
-        r"(?:我|本人)?(?:有事|有点事|有事先走|临时有事|时间不够|赶时间|要忙了)(?:了|先|一下)?(?:先)?(?:结束|离开|退出|不面了|不聊了|告辞)?",
+    professional_subweights: dict[str, float] = field(
+        default_factory=lambda: {
+            "technical_correctness": 0.20,
+            "knowledge_match": 0.09,
+            "job_match": 0.31,
+            "engineering_practice": 0.40,
+        }
     )
-    strong_stop_markers = (
-        "不想面试",
-        "不面试了",
-        "不想继续面试",
-        "不想继续了",
-        "结束面试",
-        "停止面试",
-        "先结束吧",
-        "到此为止",
-        "不用继续了",
-        "stopinterview",
-        "endinterview",
-        "quitinterview",
-        "donotwanttointerview",
-        "dontwanttointerview",
-        "dontwanttocontinue",
-        "iwanttostop",
-        "iwanttoquit",
+    cognition_subweights: dict[str, float] = field(
+        default_factory=lambda: {
+            "logic_structure": 1 / 3,
+            "problem_solving": 1 / 3,
+            "system_thinking": 1 / 3,
+        }
+    )
+    expression_subweights: dict[str, float] = field(
+        default_factory=lambda: {
+            "clarity": 1 / 3,
+            "confidence_stability": 1 / 3,
+            "professional_maturity": 1 / 3,
+        }
     )
 
-    if any(marker in normalized for marker in strong_stop_markers):
-        return True
 
-    return any(re.search(pattern, normalized) for pattern in explicit_patterns)
-
-
-def _compact_text(text: str) -> str:
-    normalized = (text or "").strip().lower()
-    if not normalized:
-        return ""
-    normalized = re.sub(r"[\s\u3000]+", "", normalized)
-    normalized = re.sub(r"[，。！？；：、,.!?;:\"'“”‘’（）()\[\]{}<>…·—\-_/\\|]+", "", normalized)
-    return normalized
+settings = Settings()
 
 
 @dataclass(slots=True)
-class PromptDoc:
-    system_role: str
-    rules: str
-    format_requirements: str
-    input_context: str
+class ReportModelConfig:
+    report_model: str = _REPORT_MODEL
+    report_temperature: float = _REPORT_TEMPERATURE
+    report_max_output_tokens: int = _REPORT_MAX_OUTPUT_TOKENS
+    google_api_key: str = os.getenv("GOOGLE_API_KEY", "").strip()
+    google_use_vertexai: bool = os.getenv("GOOGLE_USE_VERTEXAI", "false").strip().lower() in {"1", "true", "yes", "on"}
+    google_cloud_project: str = os.getenv("GOOGLE_CLOUD_PROJECT", "").strip()
+    google_cloud_location: str = os.getenv("GOOGLE_CLOUD_LOCATION", "").strip()
 
 
-class OfficialPromptRegistry:
-    def __init__(self) -> None:
-        self._env = Environment(undefined=StrictUndefined)
-        _trace_log("prompt_registry_init", prompt_root=str(_OFFICIAL_PROMPT_DIR))
-        self.agent_persona = self._load(_OFFICIAL_PROMPT_DIR / "agent_persona_v1.yaml")
-        self.stage_control = self._load(_OFFICIAL_PROMPT_DIR / "stage_control_v1.yaml")
-        self.turn_correction = self._load(_OFFICIAL_PROMPT_DIR / "turn_correction_v1.yaml")
+def _build_report_model_client(config_obj: ReportModelConfig) -> genai.Client:
+    _trace_log(
+        "build_report_model_client_enter",
+        model=config_obj.report_model,
+        temperature=config_obj.report_temperature,
+        use_vertexai=config_obj.google_use_vertexai,
+        has_api_key=bool(config_obj.google_api_key),
+    )
 
-    def _load(self, path: Path) -> PromptDoc:
-        _trace_log("prompt_load", path=str(path))
-        with path.open("r", encoding="utf-8") as handle:
-            data = yaml.safe_load(handle)
-        return PromptDoc(
-            system_role=str(data["system_role"]),
-            rules=str(data["rules"]),
-            format_requirements=str(data["format_requirements"]),
-            input_context=str(data["input_context"]),
+    if config_obj.google_use_vertexai:
+        client = genai.Client(
+            vertexai=True,
+            project=config_obj.google_cloud_project or None,
+            location=config_obj.google_cloud_location or None,
         )
+    else:
+        if not config_obj.google_api_key:
+            raise ValueError("GOOGLE_API_KEY 未配置，或未启用 GOOGLE_USE_VERTEXAI")
+        client = genai.Client(api_key=config_obj.google_api_key)
 
-    def _render(self, doc: PromptDoc, **kwargs: Any) -> str:
-        system_role = self._env.from_string(doc.system_role).render(**kwargs)
-        rules = self._env.from_string(doc.rules).render(**kwargs)
-        fmt = self._env.from_string(doc.format_requirements).render(**kwargs)
-        input_context = self._env.from_string(doc.input_context).render(**kwargs)
-        _trace_log(
-            "prompt_render",
-            kwargs=kwargs,
-            system_role=system_role,
-            rules=rules,
-            format_requirements=fmt,
-            input_context=input_context,
-        )
-        return "\n\n".join(part for part in [system_role, rules, fmt, input_context] if part.strip())
-
-    def render_agent_persona(self, context: InterviewContext) -> str:
-        rendered = self._render(
-            self.agent_persona,
-            session_id=context.session_id,
-            metadata_source=context.metadata_source,
-            job_position=context.job_position,
-            jd_summary=context.jd_summary,
-            resume_content=context.resume_content,
-            interviewer_style=context.interviewer_style,
-            difficulty=context.difficulty,
-            company_context=context.company_context,
-            mode=context.mode,
-        )
-        _trace_log("prompt_render_agent_persona", session_id=context.session_id, prompt=rendered)
-        return rendered
-
-    def render_stage_control(self, context: InterviewContext, stage_name: str) -> str:
-        stage_cfg = STAGE_CONFIG[stage_name]
-        rendered = self._render(
-            self.stage_control,
-            session_id=context.session_id,
-            metadata_source=context.metadata_source,
-            job_position=context.job_position,
-            jd_summary=context.jd_summary,
-            resume_content=context.resume_content,
-            interviewer_style=context.interviewer_style,
-            difficulty=context.difficulty,
-            company_context=context.company_context,
-            mode=context.mode,
-            current_stage=stage_name,
-            stage_goal=stage_cfg["goal"],
-            stage_focus=stage_cfg["focus"],
-            min_turns=stage_cfg["min_turns"],
-            max_turns=stage_cfg["max_turns"],
-            turn_index=1,
-        )
-        _trace_log("prompt_render_stage_control", session_id=context.session_id, stage_name=stage_name, prompt=rendered)
-        return rendered
-
-    def render_turn_correction(
-        self,
-        context: InterviewContext,
-        *,
-        stage_name: str,
-        turn_index: int,
-        question: str,
-        user_answer: str,
-        history_summary: str,
-        no_more_questions: bool,
-    ) -> str:
-        next_stage = _get_next_stage(stage_name)
-        stage_transition = "end" if stage_name == "end" else ("end" if stage_name == "reverse_qa" and no_more_questions else "continue")
-        rendered = self._render(
-            self.turn_correction,
-            session_id=context.session_id,
-            metadata_source=context.metadata_source,
-            job_position=context.job_position,
-            jd_summary=context.jd_summary,
-            resume_content=context.resume_content,
-            interviewer_style=context.interviewer_style,
-            difficulty=context.difficulty,
-            company_context=context.company_context,
-            mode=context.mode,
-            current_stage=stage_name,
-            next_stage=next_stage,
-            stage_transition=stage_transition,
-            turn_index=turn_index,
-            question=question,
-            user_answer=user_answer,
-            history_summary=history_summary,
-            no_more_questions=str(no_more_questions).lower(),
-        )
-        _trace_log(
-            "prompt_render_turn_correction",
-            session_id=context.session_id,
-            stage_name=stage_name,
-            turn_index=turn_index,
-            question=question,
-            user_answer=user_answer,
-            history_summary=history_summary,
-            no_more_questions=no_more_questions,
-            prompt=rendered,
-        )
-        return rendered
+    _trace_log("build_report_model_client_exit", model=config_obj.report_model)
+    return client
 
 
-@dataclass
-class InterviewContext:
-    session_id: str
-    job_position: str
-    jd_summary: str
-    resume_content: str
-    interviewer_style: str
-    difficulty: str
-    company_context: str
-    mode: str
-    metadata_source: str = "defaults"
-    started_at: float = field(default_factory=time.time)
+def _build_report_prompt_parts(
+    context: InterviewContext,
+    prompt_config: dict[str, Any],
+    *,
+    report_reason: str,
+    conversation_summary: str,
+    conversation_transcript: str,
+) -> tuple[str, str, str]:
+    render_kwargs = {
+        "session_id": context.session_id,
+        "metadata_source": context.metadata_source,
+        "job_position": context.job_position,
+        "jd_summary": context.jd_summary,
+        "resume_content": context.resume_content,
+        "interviewer_style": context.interviewer_style,
+        "difficulty": context.difficulty,
+        "company_context": context.company_context,
+        "mode": context.mode,
+        "report_reason": report_reason,
+        "conversation_summary": conversation_summary,
+        "conversation_transcript": conversation_transcript,
+    }
+
+    system_parts = [
+        _render_prompt_block(prompt_config, "system_role", render_kwargs),
+        _render_prompt_block(prompt_config, "rules", render_kwargs),
+        _render_prompt_block(prompt_config, "format_requirements", render_kwargs),
+    ]
+    system_prompt = "\n\n".join(part for part in system_parts if part)
+    user_prompt = _render_prompt_block(prompt_config, "input_context", render_kwargs)
+    full_prompt = "\n\n".join(part for part in [system_prompt, user_prompt] if part)
+    return system_prompt, user_prompt, full_prompt
 
 
-@dataclass
-class StageTurnRecord:
-    stage: str
-    turn_index: int
-    question: str
-    user_answer: str
-    history_summary: str
-
-
-@dataclass
-class StageResult:
-    stage: str
-    turns: int
-    question: str
-    user_answer: str
-    history_summary: str
-    turn_records: list[StageTurnRecord]
-    completed_reason: str
+async def _generate_report_text_with_model(*, system_prompt: str, user_prompt: str) -> str:
+    config_obj = ReportModelConfig()
+    client = _build_report_model_client(config_obj)
+    generation_config: Any = {
+        "system_instruction": system_prompt,
+        "temperature": config_obj.report_temperature,
+        "max_output_tokens": config_obj.report_max_output_tokens,
+        "response_mime_type": "application/json",
+        "response_json_schema": _REPORT_RESPONSE_JSON_SCHEMA,
+    }
+    response = await asyncio.to_thread(
+        client.models.generate_content,
+        model=config_obj.report_model,
+        contents=user_prompt,
+        config=generation_config,
+    )
+    return str(getattr(response, "text", "") or "")
 
 
 def _message_text(message: Any) -> str:
@@ -406,12 +309,23 @@ def _extract_last_assistant_message(turn_ctx: llm.ChatContext, fallback: str) ->
     return fallback
 
 
-def _build_history_summary(turn_ctx: llm.ChatContext) -> str:
+def _extract_last_user_message(turn_ctx: llm.ChatContext, fallback: str = "") -> str:
+    items = list(getattr(turn_ctx, "items", []) or [])
+    for item in reversed(items):
+        if str(getattr(item, "role", "")).strip().lower() != "user":
+            continue
+        text = _message_text(item)
+        if text:
+            return text
+    return fallback
+
+
+def _build_history_summary(turn_ctx: llm.ChatContext, max_items: int = 8) -> str:
     items = list(getattr(turn_ctx, "items", []) or [])
     if not items:
         return ""
     lines: list[str] = []
-    for item in items[-8:]:
+    for item in items[-max_items:]:
         role = str(getattr(item, "role", "unknown")).strip() or "unknown"
         text = _message_text(item)
         if text:
@@ -419,300 +333,339 @@ def _build_history_summary(turn_ctx: llm.ChatContext) -> str:
     return "\n".join(lines)
 
 
-def _is_expected_workflow_cancellation(exc: BaseException, stop_requested: bool) -> bool:
-    if stop_requested:
-        return True
-    if not isinstance(exc, llm.ToolError):
-        return False
-    return "cancel" in str(exc).lower()
+def _build_conversation_transcript(turn_ctx: llm.ChatContext, max_items: int = 40, max_chars: int = 12000) -> str:
+    items = list(getattr(turn_ctx, "items", []) or [])
+    if not items:
+        return ""
+
+    transcript_items = items[-max_items:] if max_items > 0 else items
+    lines: list[str] = []
+    for item in transcript_items:
+        role = str(getattr(item, "role", "unknown")).strip() or "unknown"
+        text = _message_text(item)
+        if text:
+            lines.append(f"{role}: {text}")
+
+    transcript = "\n".join(lines)
+    if max_chars > 0 and len(transcript) > max_chars:
+        return f"{transcript[:max_chars]}...(truncated)"
+    return transcript
 
 
-class InterviewStageTask(AgentTask[StageResult]):
-    def __init__(
+def _extract_last_message_from_items(items: list[Any], role: str, fallback: str = "") -> str:
+    for item in reversed(items or []):
+        if str(getattr(item, "role", "")).strip().lower() != role:
+            continue
+        text = _message_text(item)
+        if text:
+            return text
+    return fallback
+
+
+def _extract_json_report(report_text: str) -> dict[str, Any] | None:
+    text = str(report_text or "").strip()
+    if not text:
+        return None
+
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\s*```$", "", text)
+
+    start_index = text.find("{")
+    end_index = text.rfind("}")
+    if start_index >= 0 and end_index > start_index:
+        text = text[start_index : end_index + 1]
+
+    try:
+        parsed = json.loads(text)
+    except Exception:
+        return None
+
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _safe_report_score(report_payload: dict[str, Any], section: str, key: str) -> float:
+    try:
+        section_payload = report_payload.get(section, {})
+        value = section_payload.get(key, {})
+        score = float(value.get("score", 0.0))
+        if score < 0:
+            return 0.0
+        if score > 5:
+            return 5.0
+        return score
+    except Exception:
+        return 0.0
+
+
+def _compute_report_score_summary(report_payload: dict[str, Any]) -> dict[str, Any]:
+    professional = sum(
+        _safe_report_score(report_payload, "professional", key) * weight
+        for key, weight in settings.professional_subweights.items()
+    )
+    cognition = sum(
+        _safe_report_score(report_payload, "cognition", key) * weight
+        for key, weight in settings.cognition_subweights.items()
+    )
+    expression = sum(
+        _safe_report_score(report_payload, "expression", key) * weight
+        for key, weight in settings.expression_subweights.items()
+    )
+
+    overall_5_point = (
+        professional * settings.professional_weight
+        + cognition * settings.cognition_weight
+        + expression * settings.expression_weight
+    )
+    return {
+        "dimension_scores": {
+            "professional": round(professional, 1),
+            "cognition": round(cognition, 1),
+            "expression": round(expression, 1),
+        },
+        "overall_score": round(overall_5_point * 20, 1),
+    }
+
+
+def _ensure_string_list(value: Any) -> list[str]:
+    if isinstance(value, (list, tuple)):
+        return [str(item).strip() for item in value if str(item).strip()]
+    text = str(value or "").strip()
+    return [text] if text else []
+
+
+def _build_report_summary_payload(report_payload: dict[str, Any]) -> dict[str, Any]:
+    score_summary = _compute_report_score_summary(report_payload)
+    normalized_payload = dict(report_payload)
+    normalized_payload["overall_score"] = score_summary["overall_score"]
+    return normalized_payload
+
+
+def _build_callback_report_payload(report_payload: dict[str, Any]) -> dict[str, Any]:
+    normalized_report = _build_report_summary_payload(report_payload)
+    normalized_report["hiring_recommendation"] = str(normalized_report.get("hiring_recommendation", "")).strip()
+    normalized_report["executive_summary"] = str(normalized_report.get("executive_summary", "")).strip()
+    normalized_report["strengths"] = _ensure_string_list(normalized_report.get("strengths", []))
+    normalized_report["weaknesses"] = _ensure_string_list(normalized_report.get("weaknesses", []))
+    normalized_report["ability_trend"] = str(normalized_report.get("ability_trend", "")).strip()
+    normalized_report["detailed_recommendation"] = str(normalized_report.get("detailed_recommendation", "")).strip()
+    return normalized_report
+
+
+def _resolve_report_callback_url(session_id: str) -> str:
+    safe_interview_id = quote(str(session_id or "").strip(), safe="")
+    template = os.getenv("REPORT_CALLBACK_URL_TEMPLATE", _DEFAULT_REPORT_CALLBACK_URL_TEMPLATE).strip()
+    if "{interviewId}" in template:
+        return template.replace("{interviewId}", safe_interview_id)
+    return template
+
+
+def _build_report_callback_body(*, session_id: str, report_payload: dict[str, Any]) -> dict[str, Any]:
+    _ = session_id
+    return _build_callback_report_payload(report_payload)
+
+
+def _build_report_failure_callback_body(*, session_id: str, error: str) -> dict[str, Any]:
+    return {
+        "code": 500,
+        "message": "report_generation_failed",
+        "data": {
+            "interviewId": session_id,
+            "session_id": session_id,
+            "status": "failed",
+            "error": error,
+        },
+    }
+
+
+async def _post_callback_with_retry(session_id: str, callback_url: str, payload: dict[str, Any], max_attempts: int = _REPORT_CALLBACK_MAX_ATTEMPTS) -> None:
+    timeout = httpx.Timeout(connect=5.0, read=_REPORT_REQUEST_TIMEOUT_SECONDS, write=10.0, pool=5.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        for attempt in range(1, max_attempts + 1):
+            try:
+                logger.info(
+                    "report_callback_attempt session_id=%s url=%s attempt=%s/%s body=%s",
+                    session_id,
+                    callback_url,
+                    attempt,
+                    max_attempts,
+                    _trace_value(payload, 6000),
+                )
+                response = await client.post(callback_url, json=payload)
+                if 200 <= response.status_code < 300:
+                    logger.info(
+                        "report_callback_success session_id=%s url=%s status=%s attempt=%s/%s",
+                        session_id,
+                        callback_url,
+                        response.status_code,
+                        attempt,
+                        max_attempts,
+                    )
+                    return
+                raise RuntimeError(f"callback status={response.status_code}, body={response.text[:300]}")
+            except Exception as exc:
+                if attempt >= max_attempts:
+                    logger.exception(
+                        "report_callback_failed session_id=%s url=%s attempts=%s",
+                        session_id,
+                        callback_url,
+                        max_attempts,
+                    )
+                    raise RuntimeError(f"callback failed after {max_attempts} attempts: {exc}") from exc
+                sleep_seconds = 2 ** (attempt - 1)
+                logger.warning(
+                    "report_callback_retry session_id=%s url=%s attempt=%s/%s sleep=%ss error=%s",
+                    session_id,
+                    callback_url,
+                    attempt,
+                    max_attempts,
+                    sleep_seconds,
+                    str(exc),
+                )
+                await asyncio.sleep(sleep_seconds)
+
+
+@dataclass(slots=True)
+class InterviewContext:
+    session_id: str
+    job_position: str
+    jd_summary: str
+    resume_content: str
+    interviewer_style: str
+    difficulty: str
+    company_context: str
+    mode: str
+    metadata_source: str = "defaults"
+    started_at: float = field(default_factory=time.time)
+
+
+INTERVIEW_FLOW_SEQUENCE = ["intro", "resume_deep_dive", "tech_general", "tech_scenario", "reverse_qa", "end"]
+_PROMPT_ROOT = Path(__file__).resolve().parent / "prompts" / "official"
+_PROMPT_FILE = _PROMPT_ROOT / "agent_persona_v1.yaml"
+_REPORT_PROMPT_FILE = _PROMPT_ROOT / "report_generation_v1.yaml"
+_PROMPT_TEMPLATE_ENV = Environment(autoescape=False, trim_blocks=True, lstrip_blocks=True, undefined=StrictUndefined)
+
+
+def _load_prompt_config(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as file:
+        prompt_config = yaml.safe_load(file)
+    if not isinstance(prompt_config, dict):
+        raise ValueError(f"prompt config must be a mapping: {path}")
+    return cast(dict[str, Any], prompt_config)
+
+
+def _render_prompt_block(prompt_config: dict[str, Any], key: str, kwargs: dict[str, Any]) -> str:
+    template = prompt_config.get(key)
+    if not template:
+        return ""
+    return _PROMPT_TEMPLATE_ENV.from_string(str(template)).render(**kwargs).strip()
+
+
+def _build_global_prompt(context: InterviewContext, prompt_config: dict[str, Any]) -> str:
+    flow_summary = " -> ".join(INTERVIEW_FLOW_SEQUENCE)
+    render_kwargs = {
+        "session_id": context.session_id,
+        "metadata_source": context.metadata_source,
+        "job_position": context.job_position,
+        "jd_summary": context.jd_summary,
+        "resume_content": context.resume_content,
+        "interviewer_style": context.interviewer_style,
+        "difficulty": context.difficulty,
+        "company_context": context.company_context,
+        "mode": context.mode,
+        "flow_summary": flow_summary,
+    }
+
+    prompt_parts = [
+        _render_prompt_block(prompt_config, "system_role", render_kwargs),
+        _render_prompt_block(prompt_config, "rules", render_kwargs),
+        _render_prompt_block(prompt_config, "stage_strategy", render_kwargs),
+        _render_prompt_block(prompt_config, "deep_dive_strategy", render_kwargs),
+        _render_prompt_block(prompt_config, "turn_correction", render_kwargs),
+        _render_prompt_block(prompt_config, "tool_contract", render_kwargs),
+        _render_prompt_block(prompt_config, "anti_rush_control", render_kwargs),
+        _render_prompt_block(prompt_config, "interviewer_style_policy", render_kwargs),
+        _render_prompt_block(prompt_config, "format_requirements", render_kwargs),
+        _render_prompt_block(prompt_config, "input_context", render_kwargs),
+    ]
+    return "\n\n".join(part for part in prompt_parts if part)
+
+
+def _build_report_prompt(
+    context: InterviewContext,
+    prompt_config: dict[str, Any],
+    *,
+    report_reason: str,
+    conversation_summary: str,
+    conversation_transcript: str,
+) -> str:
+    _, _, full_prompt = _build_report_prompt_parts(
+        context,
+        prompt_config,
+        report_reason=report_reason,
+        conversation_summary=conversation_summary,
+        conversation_transcript=conversation_transcript,
+    )
+    return full_prompt
+
+
+class AINativeOfficialPromptRegistry:
+    def __init__(self) -> None:
+        self._prompt_config = _load_prompt_config(_PROMPT_FILE)
+        self._report_prompt_config = _load_prompt_config(_REPORT_PROMPT_FILE)
+        _trace_log(
+            "prompt_registry_init",
+            prompt_root=str(_PROMPT_ROOT),
+            prompt_file=str(_PROMPT_FILE),
+            report_prompt_file=str(_REPORT_PROMPT_FILE),
+        )
+
+    def render_agent_persona(self, context: InterviewContext) -> str:
+        prompt = _build_global_prompt(context, self._prompt_config)
+        _trace_log("prompt_render_agent_persona", session_id=context.session_id, prompt=prompt)
+        return prompt
+
+    def render_report_generation_prompt(
         self,
-        stage_name: str,
-        interview_context: InterviewContext,
-        prompts: OfficialPromptRegistry,
-    ) -> None:
-        self._stage_name = stage_name
-        self._context = interview_context
-        self._prompts = prompts
-        self._turns = 0
-        self._turn_records: list[StageTurnRecord] = []
-        self._stage_cfg = STAGE_CONFIG[stage_name]
-        _trace_log(
-            "stage_task_init",
-            session_id=self._context.session_id,
-            stage_name=self._stage_name,
-            stage_cfg=self._stage_cfg,
-        )
-        super().__init__(instructions=self._prompts.render_stage_control(self._context, stage_name))
-
-    async def on_enter(self) -> None:
-        opening_text = self._stage_cfg["opening"].format(
-            job_position=self._context.job_position or "岗位",
-            company_context=self._context.company_context,
+        context: InterviewContext,
+        *,
+        report_reason: str,
+        conversation_summary: str,
+        conversation_transcript: str,
+    ) -> str:
+        prompt = _build_report_prompt(
+            context,
+            self._report_prompt_config,
+            report_reason=report_reason,
+            conversation_summary=conversation_summary,
+            conversation_transcript=conversation_transcript,
         )
         _trace_log(
-            "stage_enter",
-            session_id=self._context.session_id,
-            stage_name=self._stage_name,
-            turns=self._turns,
-            opening_text=opening_text,
-            stage_focus=self._stage_cfg["focus"],
+            "prompt_render_report_generation",
+            session_id=context.session_id,
+            report_reason=report_reason,
+            prompt=prompt,
         )
-        if self._stage_name == "end":
-            _trace_log(
-                "stage_complete_requested",
-                session_id=self._context.session_id,
-                stage_name=self._stage_name,
-                turns=self._turns,
-                reason="closing_stage",
-                next_stage="end",
-            )
-            self.session.generate_reply(instructions=opening_text)
-            self.complete(
-                StageResult(
-                    stage=self._stage_name,
-                    turns=self._turns,
-                    question=opening_text,
-                    user_answer="",
-                    history_summary=opening_text,
-                    turn_records=[],
-                    completed_reason="closing_stage",
-                )
-            )
-            return
-
-        _trace_log(
-            "stage_enter_reply_requested",
-            session_id=self._context.session_id,
-            stage_name=self._stage_name,
-            instructions=(
-                f"{opening_text} "
-                f"Follow the current stage strictly: {self._stage_cfg['focus']}"
-            ),
-        )
-        self.session.generate_reply(
-            instructions=(
-                f"{opening_text} "
-                f"Follow the current stage strictly: {self._stage_cfg['focus']}"
-            )
-        )
-
-    async def on_user_turn_completed(self, turn_ctx: llm.ChatContext, new_message: llm.ChatMessage) -> None:
-        opening_text = self._stage_cfg["opening"].format(
-            job_position=self._context.job_position or "岗位",
-            company_context=self._context.company_context,
-        )
-        self._turns += 1
-        raw_answer = new_message.text_content or ""
-        answer = raw_answer.strip()
-        question = _extract_last_assistant_message(turn_ctx, opening_text)
-        history_summary = _build_history_summary(turn_ctx)
-        _trace_log(
-            "stage_user_turn_received",
-            session_id=self._context.session_id,
-            stage_name=self._stage_name,
-            turns=self._turns,
-            raw_answer=raw_answer,
-            answer=answer,
-            question=question,
-            history_summary=history_summary,
-            chat_items=list(getattr(turn_ctx, "items", []) or []),
-        )
-        stop_requested = _candidate_wants_to_stop(answer)
-        no_more_questions = self._stage_name == "reverse_qa" and _no_more_questions(answer)
-        next_stage = _get_next_stage(self._stage_name)
-        _trace_log(
-            "stage_turn_decision",
-            session_id=self._context.session_id,
-            stage_name=self._stage_name,
-            turns=self._turns,
-            stop_requested=stop_requested,
-            no_more_questions=no_more_questions,
-            next_stage=next_stage,
-        )
-
-        if stop_requested:
-            self._turn_records.append(
-                StageTurnRecord(
-                    stage=self._stage_name,
-                    turn_index=self._turns,
-                    question=question,
-                    user_answer=answer,
-                    history_summary=history_summary,
-                )
-            )
-            _trace_log(
-                "stage_stop_requested",
-                session_id=self._context.session_id,
-                stage_name=self._stage_name,
-                turns=self._turns,
-                answer=answer,
-            )
-            _trace_log(
-                "stage_complete_requested",
-                session_id=self._context.session_id,
-                stage_name=self._stage_name,
-                turns=self._turns,
-                reason="candidate_ended_interview",
-                next_stage=next_stage,
-            )
-            self.complete(
-                StageResult(
-                    stage=self._stage_name,
-                    turns=self._turns,
-                    question=question,
-                    user_answer=answer,
-                    history_summary=history_summary,
-                    turn_records=list(self._turn_records),
-                    completed_reason="candidate_ended_interview",
-                )
-            )
-            return
-
-        correction_note = self._prompts.render_turn_correction(
-            self._context,
-            stage_name=self._stage_name,
-            turn_index=self._turns,
-            question=question,
-            user_answer=answer,
-            history_summary=history_summary,
-            no_more_questions=no_more_questions,
-        )
-        if correction_note.strip():
-            turn_ctx.add_message(role="system", content=correction_note)
-        _trace_log(
-            "stage_turn_correction_applied",
-            session_id=self._context.session_id,
-            stage_name=self._stage_name,
-            turns=self._turns,
-            correction_note=correction_note,
-        )
-        self._turn_records.append(
-            StageTurnRecord(
-                stage=self._stage_name,
-                turn_index=self._turns,
-                question=question,
-                user_answer=answer,
-                history_summary=history_summary,
-            )
-        )
-        _trace_log(
-            "stage_turn_recorded",
-            session_id=self._context.session_id,
-            stage_name=self._stage_name,
-            turns=self._turns,
-            turn_record=self._turn_records[-1],
-            turn_records=list(self._turn_records),
-        )
-
-        if no_more_questions:
-            _trace_log(
-                "stage_complete_requested",
-                session_id=self._context.session_id,
-                stage_name=self._stage_name,
-                turns=self._turns,
-                reason="candidate_has_no_questions",
-                next_stage=next_stage,
-            )
-            self.complete(
-                StageResult(
-                    stage=self._stage_name,
-                    turns=self._turns,
-                    question=question,
-                    user_answer=answer,
-                    history_summary=history_summary,
-                    turn_records=list(self._turn_records),
-                    completed_reason="candidate_has_no_questions",
-                )
-            )
-            return
-
-        if self._turns >= self._stage_cfg["max_turns"]:
-            _trace_log(
-                "stage_complete_requested",
-                session_id=self._context.session_id,
-                stage_name=self._stage_name,
-                turns=self._turns,
-                reason="turn_limit_reached",
-                next_stage=next_stage,
-            )
-            self.complete(
-                StageResult(
-                    stage=self._stage_name,
-                    turns=self._turns,
-                    question=question,
-                    user_answer=answer,
-                    history_summary=history_summary,
-                    turn_records=list(self._turn_records),
-                    completed_reason="turn_limit_reached",
-                )
-            )
+        return prompt
 
 
-class InterviewWorkflowAgent(Agent):
-    def __init__(self, interview_context: InterviewContext, prompts: OfficialPromptRegistry) -> None:
+class AINativeInterviewWorkflowAgent(Agent):
+    def __init__(self, interview_context: InterviewContext, prompts: AINativeOfficialPromptRegistry) -> None:
         super().__init__(instructions=prompts.render_agent_persona(interview_context))
         self._context = interview_context
         self._prompts = prompts
-        self._latest_stage_results: list[StageResult] = []
-        self._task_group: TaskGroup | None = None
-        self._report_task: asyncio.Task[None] | None = None
-        self._stop_requested = False
+        self._state_lock = asyncio.Lock()
+        self._finalization_requested = False
+        self._finalization_reason = "model_requested_end"
+        self._report_generation_started = False
+        self._report_generation_completed = False
+        self._report_generation_task: asyncio.Task[None] | None = None
+        self._final_report_text = ""
+        self._final_report_payload: dict[str, Any] | None = None
+        self._final_report_callback_payload: dict[str, Any] | None = None
         _trace_log("workflow_agent_init", context=interview_context)
 
-    def _request_stop(self) -> None:
-        self._stop_requested = True
-        _trace_log("workflow_stop_requested", session_id=self._context.session_id, task_group_present=self._task_group is not None)
-        if self._task_group is not None:
-            self._task_group.cancel()
-
-    def _clear_report_task_reference(self, task: asyncio.Task[None]) -> None:
-        if self._report_task is task:
-            self._report_task = None
-            _trace_log("report_task_reference_cleared", session_id=self._context.session_id)
-
-    async def _run_report_job(self, stage_results: list[StageResult]) -> None:
-        report_service = OfficialReportService()
-        try:
-            _trace_log("report_job_started", session_id=self._context.session_id, stage_results=stage_results)
-            logger.info(
-                "report_job_started session=%s stage_results=%s",
-                self._context.session_id,
-                len(stage_results),
-            )
-            report_result = await report_service.generate_and_callback(self._context, stage_results)
-            _trace_log("report_job_completed", session_id=self._context.session_id, report_result=report_result)
-            logger.info(
-                "report_job_completed session=%s status=%s callback_url=%s",
-                self._context.session_id,
-                report_result.get("status"),
-                report_result.get("callback_url"),
-            )
-        except asyncio.CancelledError:
-            _trace_log("report_job_cancelled", session_id=self._context.session_id)
-            logger.warning("report_job_cancelled session=%s", self._context.session_id)
-            return
-        except Exception:
-            _trace_log("report_job_failed", session_id=self._context.session_id)
-            logger.exception("report_job_failed session=%s", self._context.session_id)
-        finally:
-            _trace_log("report_job_service_close", session_id=self._context.session_id)
-            await report_service.aclose()
-
-    def _start_report_job(self, stage_results: list[StageResult]) -> None:
-        if self._report_task is not None and not self._report_task.done():
-            _trace_log("report_job_already_running", session_id=self._context.session_id, report_task=self._report_task)
-            logger.warning("report_job_already_running session=%s", self._context.session_id)
-            return
-
-        self._report_task = asyncio.create_task(self._run_report_job(list(stage_results)))
-        self._report_task.add_done_callback(self._clear_report_task_reference)
-        _trace_log("report_job_started_background", session_id=self._context.session_id, report_task=self._report_task, stage_results=stage_results)
-
-    def _request_session_close_before_report(self) -> None:
+    def _request_session_close_after_report(self) -> None:
         try:
             session = self.session
         except RuntimeError:
@@ -720,11 +673,10 @@ class InterviewWorkflowAgent(Agent):
 
         close_soon = getattr(session, "_close_soon", None)
         if callable(close_soon):
-            _trace_log("workflow_room_close_requested", session_id=self._context.session_id, reason=CloseReason.TASK_COMPLETED.value)
-            logger.info(
-                "workflow_room_close_requested session=%s reason=%s",
-                self._context.session_id,
-                CloseReason.TASK_COMPLETED.value,
+            _trace_log(
+                "workflow_room_close_requested",
+                session_id=self._context.session_id,
+                reason=CloseReason.TASK_COMPLETED.value,
             )
             close_soon(reason=CloseReason.TASK_COMPLETED)
             return
@@ -732,119 +684,221 @@ class InterviewWorkflowAgent(Agent):
         aclose = getattr(session, "aclose", None)
         if callable(aclose):
             _trace_log("workflow_room_close_fallback", session_id=self._context.session_id, reason="session_missing_close_soon")
-            logger.warning(
-                "workflow_room_close_fallback session=%s reason=session_missing_close_soon",
-                self._context.session_id,
-            )
             close_result = aclose()
             if asyncio.iscoroutine(close_result):
                 asyncio.create_task(close_result)
 
-    async def _on_task_completed(self, event: TaskCompletedEvent) -> None:
-        result = event.result
-        _trace_log("workflow_task_completed", session_id=self._context.session_id, result=result)
-        if isinstance(result, StageResult):
-            if result.stage != "end":
-                self._latest_stage_results.append(result)
-            _trace_log(
-                "workflow_stage_result_recorded",
-                session_id=self._context.session_id,
-                stage_result=result,
-                latest_stage_results=list(self._latest_stage_results),
-            )
-            logger.info(
-                "stage_completed session=%s stage=%s turns=%s reason=%s summary=%s",
-                self._context.session_id,
-                result.stage,
-                result.turns,
-                result.completed_reason,
-                result.history_summary[:120],
-            )
-            logger.info(
-                "stage_transition session=%s from_stage=%s to_stage=%s reason=%s",
-                self._context.session_id,
-                result.stage,
-                _get_next_stage(result.stage),
-                result.completed_reason,
-            )
-            if result.completed_reason == "candidate_ended_interview":
-                _trace_log("workflow_candidate_requested_stop", session_id=self._context.session_id, stage=result.stage)
-                logger.info(
-                    "workflow_stop_requested session=%s stage=%s",
-                    self._context.session_id,
-                    result.stage,
-                )
-                self._request_stop()
-
-    async def on_enter(self) -> None:
-        _trace_log("workflow_start", session_id=self._context.session_id, stage_order=STAGE_ORDER)
-        logger.info(
-            "workflow_start session=%s stage_order=%s",
-            self._context.session_id,
-            STAGE_ORDER,
+    def _build_report_generation_prompt(self, reason: str) -> str:
+        conversation_summary = _build_history_summary(self.chat_ctx)
+        conversation_transcript = _build_conversation_transcript(self.chat_ctx)
+        return self._prompts.render_report_generation_prompt(
+            self._context,
+            report_reason=reason,
+            conversation_summary=conversation_summary,
+            conversation_transcript=conversation_transcript,
         )
-        task_group = TaskGroup(chat_ctx=self.chat_ctx, on_task_completed=self._on_task_completed)
-        self._task_group = task_group
-        for stage_name in STAGE_ORDER:
-            stage_description = STAGE_CONFIG[stage_name]["description"]
-            _trace_log("workflow_stage_task_added", session_id=self._context.session_id, stage_name=stage_name, stage_description=stage_description)
-            task_group.add(
-                lambda stage_name=stage_name: InterviewStageTask(stage_name, self._context, self._prompts),
-                id=stage_name,
-                description=stage_description,
-            )
 
-        results = None
+    async def _finalize_report_generation(self, reason: str) -> None:
+        session_id = self._context.session_id
+        callback_url = _resolve_report_callback_url(session_id)
+        system_prompt, user_prompt, report_prompt = _build_report_prompt_parts(
+            self._context,
+            self._prompts._report_prompt_config,
+            report_reason=reason,
+            conversation_summary=_build_history_summary(self.chat_ctx),
+            conversation_transcript=_build_conversation_transcript(self.chat_ctx),
+        )
+        callback_body: dict[str, Any] | None = None
+
+        _trace_log(
+            "tool_finish_interview_report_model_request_started",
+            session_id=session_id,
+            reason=reason,
+            report_prompt=report_prompt,
+        )
+
         try:
-            _trace_log("workflow_task_group_await_start", session_id=self._context.session_id)
-            results = await task_group
-            _trace_log("workflow_task_group_await_done", session_id=self._context.session_id, results=results)
-            logger.info(
-                "workflow_complete session=%s task_ids=%s",
-                self._context.session_id,
-                list(results.task_results.keys()),
+            report_text = await _generate_report_text_with_model(system_prompt=system_prompt, user_prompt=user_prompt)
+        except Exception as exc:
+            report_text = ""
+            self._final_report_text = report_text
+            self._final_report_payload = {"_report_model_error": str(exc)}
+            callback_body = _build_report_failure_callback_body(
+                session_id=session_id,
+                error=f"final report generation failed: {exc}",
             )
-        except llm.ToolError as exc:
-            _trace_log("workflow_tool_error", session_id=self._context.session_id, stop_requested=self._stop_requested, error=str(exc))
-            if _is_expected_workflow_cancellation(exc, self._stop_requested):
-                logger.info(
-                    "workflow_cancelled session=%s stop_requested=%s reason=%s",
-                    self._context.session_id,
-                    self._stop_requested,
-                    exc,
+            logger.exception("report_generation_model_failed session=%s", session_id)
+            _trace_log(
+                "report_generation_model_failed",
+                session_id=session_id,
+                reason=reason,
+                error=str(exc),
+            )
+        else:
+            self._final_report_text = report_text
+            report_payload = _extract_json_report(report_text)
+            if report_payload is None:
+                self._final_report_payload = {"_raw_report_text": report_text}
+                callback_body = _build_report_failure_callback_body(
+                    session_id=session_id,
+                    error="final report JSON parse failed",
+                )
+                logger.warning("report_generation_json_parse_failed session=%s", session_id)
+                _trace_log(
+                    "report_generation_json_parse_failed",
+                    session_id=session_id,
+                    reason=reason,
+                    report_text=report_text,
                 )
             else:
-                raise
-        except asyncio.CancelledError:
-            _trace_log("workflow_cancelled", session_id=self._context.session_id, stop_requested=self._stop_requested)
-            logger.info(
-                "workflow_cancelled session=%s stop_requested=%s",
-                self._context.session_id,
-                self._stop_requested,
+                normalized_report = _build_report_summary_payload(report_payload)
+                self._final_report_payload = normalized_report
+                callback_body = _build_report_callback_body(session_id=session_id, report_payload=normalized_report)
+                _trace_log(
+                    "report_generation_score_summary",
+                    session_id=session_id,
+                    score_summary=_compute_report_score_summary(report_payload),
+                )
+
+        self._final_report_callback_payload = callback_body
+        self._report_generation_completed = True
+        _trace_log(
+            "report_generation_completed",
+            session_id=session_id,
+            reason=reason,
+            report_payload=self._final_report_payload,
+            callback_body=callback_body,
+        )
+
+        if callback_body is not None:
+            try:
+                await _post_callback_with_retry(session_id, callback_url, callback_body)
+            except Exception as exc:
+                logger.exception("report_generation_callback_failed session=%s url=%s", session_id, callback_url)
+                _trace_log(
+                    "report_generation_callback_failed",
+                    session_id=session_id,
+                    callback_url=callback_url,
+                    error=str(exc),
+                )
+
+        self._request_session_close_after_report()
+
+    @llm.function_tool
+    async def finish_interview(self, reason: str = "model_requested_end") -> dict[str, Any]:
+        _trace_log(
+            "tool_finish_interview_enter",
+            session_id=self._context.session_id,
+            reason=reason,
+            finalization_requested=self._finalization_requested,
+        )
+
+        async with self._state_lock:
+            self._finalization_requested = True
+            self._finalization_reason = reason
+            if self._report_generation_started:
+                _trace_log(
+                    "tool_finish_interview_report_generation_already_started",
+                    session_id=self._context.session_id,
+                    reason=reason,
+                )
+                return {
+                    "status": "report_generation_already_started",
+                    "reason": reason,
+                    "report_generation_started": True,
+                    "message": "最终报告生成已在进行中。",
+                }
+            self._report_generation_started = True
+
+        report_prompt = self._build_report_generation_prompt(reason)
+        _trace_log(
+            "tool_finish_interview_report_prompt_prepared",
+            session_id=self._context.session_id,
+            reason=reason,
+            report_prompt=report_prompt,
+        )
+        try:
+            self._report_generation_task = asyncio.create_task(self._finalize_report_generation(reason))
+        except Exception as exc:
+            async with self._state_lock:
+                self._report_generation_started = False
+            logger.exception("report_generation_schedule_failed session=%s", self._context.session_id)
+            _trace_log(
+                "tool_finish_interview_report_generation_schedule_failed",
+                session_id=self._context.session_id,
+                reason=reason,
+                error=str(exc),
             )
-        finally:
-            _trace_log("workflow_task_group_cleared", session_id=self._context.session_id)
-            self._task_group = None
+            return {
+                "status": "report_generation_schedule_failed",
+                "reason": reason,
+                "report_generation_started": False,
+                "error": str(exc),
+            }
+        _trace_log(
+            "tool_finish_interview_report_generation_started",
+            session_id=self._context.session_id,
+            reason=reason,
+            report_task=self._report_generation_task,
+        )
+        return {
+            "status": "report_generation_started",
+            "reason": reason,
+            "report_generation_started": True,
+            "message": "已提交最终报告生成任务，等待报告模型完成后自动结束房间。",
+        }
 
-        if results is not None:
-            ordered_stage_results = [
-                results.task_results[stage_name]
-                for stage_name in STAGE_ORDER
-                if stage_name in results.task_results and stage_name != "end"
-            ]
-            if ordered_stage_results:
-                self._latest_stage_results = [result for result in ordered_stage_results if isinstance(result, StageResult)]
-            _trace_log("workflow_latest_stage_results_ready", session_id=self._context.session_id, latest_stage_results=list(self._latest_stage_results))
-
-        self._request_session_close_before_report()
-        self._start_report_job(list(self._latest_stage_results))
-        _trace_log("workflow_report_job_kicked_off", session_id=self._context.session_id, latest_stage_results=list(self._latest_stage_results))
+    async def on_enter(self) -> None:
+        _trace_log("workflow_start", session_id=self._context.session_id, mode="ai_native_tools")
+        logger.info("workflow_start session=%s mode=ai_native_tools", self._context.session_id)
+        generate_reply = getattr(self.session, "generate_reply", None)
+        if callable(generate_reply):
+            _trace_log(
+                "workflow_start_generate_reply_requested",
+                session_id=self._context.session_id,
+                instructions="请根据全局提示自然开场并提出第一问；一次只问一个问题，问完就停住，等待用户完整回答后再继续。你需要自己判断面试阶段，但不能连续抛出多个问题。",
+            )
+            generate_reply(
+                instructions=(
+                    "请根据全局提示自然开场并提出第一问；一次只问一个问题，问完就停住，等待用户完整回答后再继续。你需要自己判断面试阶段，但不能连续抛出多个问题。"
+                )
+            )
+        else:
+            _trace_log("workflow_start_generate_reply_unavailable", session_id=self._context.session_id)
 
     async def on_exit(self) -> None:
-        _trace_log("workflow_on_exit", session_id=self._context.session_id, report_task=self._report_task)
-        if self._report_task is not None and not self._report_task.done():
-            logger.info(
-                "report_job_detached session=%s task_done=%s",
-                self._context.session_id,
-                self._report_task.done(),
+        _trace_log(
+            "workflow_on_exit",
+            session_id=self._context.session_id,
+            finalization_requested=self._finalization_requested,
+            report_generation_started=self._report_generation_started,
+            report_generation_completed=self._report_generation_completed,
+        )
+        _trace_log(
+            "workflow_on_exit_snapshot_ready",
+            session_id=self._context.session_id,
+            round_count=len(getattr(self.chat_ctx, "items", []) or []),
+            finalization_requested=self._finalization_requested,
+            finalization_reason=self._finalization_reason,
+            report_generation_started=self._report_generation_started,
+            report_generation_completed=self._report_generation_completed,
+        )
+
+        if self._finalization_requested and not self._report_generation_started:
+            logger.warning("workflow_on_exit_without_report_generation session=%s", self._context.session_id)
+            _trace_log(
+                "workflow_on_exit_without_report_generation",
+                session_id=self._context.session_id,
+                finalization_reason=self._finalization_reason,
             )
+
+        if self._report_generation_task is not None and not self._report_generation_task.done():
+            _trace_log(
+                "workflow_on_exit_report_task_pending",
+                session_id=self._context.session_id,
+                finalization_reason=self._finalization_reason,
+            )
+
+
+OfficialPromptRegistry = cast(Any, AINativeOfficialPromptRegistry)
+InterviewWorkflowAgent = cast(Any, AINativeInterviewWorkflowAgent)
