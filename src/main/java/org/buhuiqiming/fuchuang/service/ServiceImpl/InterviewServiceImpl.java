@@ -760,10 +760,18 @@ public class InterviewServiceImpl implements InterviewService {
             interview.setDetailedRecommendation(response.getDetailedRecommendation());
 
             // 2.0 对应评分维度对应实现
-            if (response.getProfessional() != null || response.getCognition() != null || response.getExpression() != null) {
+            if (response.getDimensionScores() != null || response.getProfessional() != null || response.getCognition() != null || response.getExpression() != null) {
                 log.info("回调中包含各维度评价详情，直接映射数据, interviewId: {}", interviewId);
                 TurnEvaluationResult totalEval = new TurnEvaluationResult();
                 totalEval.setFinalScore(response.getOverallScore());
+
+                if(response.getDimensionScores() != null){
+                    TurnEvaluationResult.DimensionScores dimensionScores = new TurnEvaluationResult.DimensionScores();
+                    dimensionScores.setCognition(response.getDimensionScores().getCognition());
+                    dimensionScores.setProfessional(response.getDimensionScores().getProfessional());
+                    dimensionScores.setExpression(response.getDimensionScores().getExpression());
+                    totalEval.setDimensionScores(dimensionScores);
+                }
 
                 // 映射 Professional
                 if (response.getProfessional() != null) {
