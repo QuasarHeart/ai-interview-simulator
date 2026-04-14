@@ -27,6 +27,19 @@ public class GenerateReportResponse {
     private Cognition cognition;
     private Expression expression;
 
+    private DimensionScores dimensionScores;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public static class DimensionScores {
+        private float professional;
+        private float cognition;
+        private float expression;
+    }
+
     @Data
     @Builder
     @NoArgsConstructor
