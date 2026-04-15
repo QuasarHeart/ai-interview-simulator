@@ -437,6 +437,7 @@ def _ensure_string_list(value: Any) -> list[str]:
 def _build_report_summary_payload(report_payload: dict[str, Any]) -> dict[str, Any]:
     score_summary = _compute_report_score_summary(report_payload)
     normalized_payload = dict(report_payload)
+    normalized_payload["dimension_scores"] = score_summary["dimension_scores"]
     normalized_payload["overall_score"] = score_summary["overall_score"]
     return normalized_payload
 

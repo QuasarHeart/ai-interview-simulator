@@ -26,8 +26,8 @@ services:
     env_file:
       - .env.ml-service
     environment:
-      - HTTP_PROXY=http://host.docker.internal:14976
-      - HTTPS_PROXY=http://host.docker.internal:14976
+      - HTTP_PROXY=http://host.docker.internal:3547
+      - HTTPS_PROXY=http://host.docker.internal:3547
       - NO_PROXY=localhost,127.0.0.1,interview-api-v1
     extra_hosts:
       - "host.docker.internal:host-gateway"

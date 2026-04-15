@@ -278,6 +278,11 @@ async def test_finish_interview_uses_report_model_and_closes_after_completion(mo
     assert agent._final_report_payload is not None
     assert agent._final_report_payload["hiring_recommendation"] == "Hire"
     assert agent._final_report_payload["professional"]["technical_correctness"]["score"] == 4.0
+    assert agent._final_report_payload["dimension_scores"] == {
+        "professional": 4.0,
+        "cognition": 4.0,
+        "expression": 4.0,
+    }
     assert agent._final_report_payload["overall_score"] == 80.0
     assert callback_calls["callback_url"] == "https://nas.feixingxr.com/api/v1/interviews/sess-finish-001/report-callback"
     assert callback_calls["session_id"] == "sess-finish-001"
@@ -291,4 +296,9 @@ async def test_finish_interview_uses_report_model_and_closes_after_completion(mo
     assert callback_calls["payload"]["professional"]["knowledge_match"]["score"] == 4.0
     assert callback_calls["payload"]["cognition"]["logic_structure"]["score"] == 4.0
     assert callback_calls["payload"]["expression"]["clarity"]["score"] == 4.0
+    assert callback_calls["payload"]["dimension_scores"] == {
+        "professional": 4.0,
+        "cognition": 4.0,
+        "expression": 4.0,
+    }
     assert callback_calls["payload"]["overall_score"] == 80.0
