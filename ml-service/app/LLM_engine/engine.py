@@ -1,4 +1,6 @@
 """
+version 1.0
+engine.py 定义了 LLMEngine 类，封装了与大模型交互的核心逻辑，包括 prompt 构建、调用重试、结果解析等功能。
 通用接入大模型的框架，适配面试过程中的不同流程
 """
 import asyncio
