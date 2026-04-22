@@ -1,0 +1,83 @@
+{
+  "name": "ai-interview",
+  "main": "dist-electron/main.js",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "vite",
+    "prepare:icon": "node scripts/generate-win-icon.mjs",
+    "prune:downloads": "node scripts/prune-downloads.mjs",
+    "build": "npm run prepare:icon && vite build && npm run prune:downloads",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "axios": "^1.13.5",
+    "echarts": "^6.0.0",
+    "element-plus": "^2.13.2",
+    "highlight.js": "^11.11.1",
+    "html2pdf.js": "^0.14.0",
+    "livekit-client": "^2.18.0",
+    "mammoth": "^1.11.0",
+    "markdown-it": "^14.1.1",
+    "pinia": "^3.0.4",
+    "sass": "^1.97.3",
+    "three": "^0.183.2",
+    "vue": "^3.5.25",
+    "vue-router": "^5.0.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.2",
+    "electron": "^40.6.1",
+    "electron-builder": "^25.1.8",
+    "html-to-docx": "^1.8.0",
+    "png-to-ico": "^2.1.8",
+    "rcedit": "^5.0.1",
+    "sharp": "^0.34.5",
+    "vite": "^7.3.1",
+    "vite-plugin-electron": "^0.29.0"
+  },
+  "build": {
+    "appId": "com.aiinterview.desktop",
+    "productName": "AI模拟面试平台",
+    "asar": true,
+    "npmRebuild": false,
+    "buildDependenciesFromSource": false,
+    "afterPack": "scripts/after-pack.mjs",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "AI模拟面试平台-${version}-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "include": "build/installer.nsh",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "shortcutName": "AI模拟面试平台"
+    }
+  }
+}
