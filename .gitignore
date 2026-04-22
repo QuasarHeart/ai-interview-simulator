@@ -14,13 +14,8 @@ dist-electron
 release*
 *.local
 
-# Non-frontend directories
-build/
+
 docs/
-resume/
-scripts/
-electron/
-public/downloads/
 
 # Editor directories and files
 .vscode/*
