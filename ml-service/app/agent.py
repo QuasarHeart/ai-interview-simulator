@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import importlib
 import json
 import logging
 import os
@@ -19,17 +20,23 @@ from uuid import uuid4
 
 from dotenv import load_dotenv
 
+load_dotenv(os.getenv("ML_SERVICE_ENV_FILE", ".env.ml-service"))
+
 from livekit import agents, rtc
 from livekit.agents import AgentServer, AgentSession, TurnHandlingOptions, room_io
 from google.genai import types as google_types
 import livekit.plugins.google as google
 
 try:
+    anam = importlib.import_module("livekit.plugins.anam")
+except ModuleNotFoundError:
+    anam = None
+
+try:
     from app.official_workflow import InterviewContext, InterviewWorkflowAgent, OfficialPromptRegistry
 except ModuleNotFoundError:
     from official_workflow import InterviewContext, InterviewWorkflowAgent, OfficialPromptRegistry
 
-load_dotenv(os.getenv("ML_SERVICE_ENV_FILE", ".env.ml-service"))
 logger = logging.getLogger("ml-service.agent")
 
 _OFFICIAL_TRACE_LOG_DETAIL = (
@@ -50,6 +57,24 @@ _OFFICIAL_TRACE_LOG_MAX_CHARS = max(
 STYLE_SET = {"standard", "friendly", "aggressive", "expert"}
 DIFFICULTY_SET = {"easy", "medium", "hard"}
 MODE_SET = {"text", "audio", "video"}
+
+
+def _get_env_text(name: str, default: str = "") -> str:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip()
+
+
+def _get_optional_int_env(name: str, default: int) -> int:
+    raw_value = _get_env_text(name)
+    if not raw_value:
+        return default
+    try:
+        return int(raw_value)
+    except ValueError:
+        logger.warning("Invalid %s=%r; using default %s", name, raw_value, default)
+        return default
 
 
 @dataclass(slots=True)
@@ -96,6 +121,11 @@ class ModelConfig:
     difficulty: str = os.getenv("INTERVIEW_DIFFICULTY", "medium")
     company_context: str = os.getenv("COMPANY_CONTEXT", "通用科技公司文化")
     interview_mode: str = os.getenv("INTERVIEW_MODE", "video")
+    anam_api_key: str = _get_env_text("ANAM_API_KEY")
+    anam_api_url: str = _get_env_text("ANAM_API_URL")
+    anam_avatar_id: str = _get_env_text("ANAM_AVATAR_ID")
+    anam_avatar_name: str = _get_env_text("ANAM_AVATAR_NAME", "avatar")
+    anam_avatar_model: str = _get_env_text("ANAM_AVATAR_MODEL")
 
 
 config = ModelConfig()
@@ -425,6 +455,42 @@ def _build_turn_handling_options() -> TurnHandlingOptions:
     return turn_handling
 
 
+def _build_anam_avatar_session(config_obj: ModelConfig, session_profile: SessionProfile) -> Any | None:
+    if session_profile.mode != "video":
+        return None
+
+    if not config_obj.anam_api_key or not config_obj.anam_avatar_id:
+        logger.info(
+            "Video mode is enabled but ANAM_API_KEY/ANAM_AVATAR_ID are missing; continuing without digital avatar"
+        )
+        return None
+
+    if anam is None:
+        raise RuntimeError(
+            "Anam avatar requested, but livekit-agents[anam] is not installed. "
+            "Install livekit-agents[images,anam]~=1.5 to enable video avatars."
+        )
+
+    api_url = config_obj.anam_api_url.strip() if config_obj.anam_api_url else ""
+    if not api_url:
+        api_url = getattr(anam, "DEFAULT_API_URL", "https://api.anam.ai")
+
+    persona_config_kwargs: dict[str, Any] = {
+        "name": config_obj.anam_avatar_name or "avatar",
+        "avatarId": config_obj.anam_avatar_id,
+    }
+    if config_obj.anam_avatar_model:
+        persona_config_kwargs["avatarModel"] = config_obj.anam_avatar_model
+
+    avatar_kwargs: dict[str, Any] = {
+        "persona_config": anam.PersonaConfig(**persona_config_kwargs),
+        "api_key": config_obj.anam_api_key,
+        "api_url": api_url,
+    }
+
+    return anam.AvatarSession(**avatar_kwargs)
+
+
 @server.rtc_session(agent_name="ai-interview-3")
 async def ai_interview_session(ctx: agents.JobContext) -> None:
     _trace_log(
@@ -470,6 +536,17 @@ async def ai_interview_session(ctx: agents.JobContext) -> None:
         min_consecutive_speech_delay=float(os.getenv("INTERVIEW_MIN_CONSECUTIVE_SPEECH_DELAY", "4.0")),
     )
     room_options = _build_room_options(session_profile)
+
+    avatar_session = _build_anam_avatar_session(config, session_profile)
+    if avatar_session is not None:
+        _trace_log("ai_interview_session_avatar_start_enter", session_id=session_id, provider="anam")
+        try:
+            await avatar_session.start(session, room=ctx.room)
+        except Exception:
+            logger.exception("Anam avatar start failed; continuing without digital avatar")
+        else:
+            _trace_log("ai_interview_session_avatar_start_exit", session_id=session_id, provider="anam")
+
     _trace_log("ai_interview_session_before_start", room_options=room_options, interview_context=interview_context)
 
     await session.start(
