@@ -18,7 +18,7 @@ public class PythonClientConfig {
 
         return RestClient.builder()
                 .requestFactory(factory)
-                .baseUrl("https://http://47.251.18.78:8000/api/v1/interview")
+                .baseUrl("http://47.251.18.78:8000/api/v1/interview")
                 .defaultHeader("Content-Type", "application/json")
                 .build();
     }
