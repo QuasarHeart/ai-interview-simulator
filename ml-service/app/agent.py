@@ -8,6 +8,7 @@ start the official workflow agent.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import inspect
 import importlib
 import json
@@ -77,6 +78,17 @@ def _get_optional_int_env(name: str, default: int) -> int:
         return default
 
 
+def _get_optional_float_env(name: str, default: float) -> float:
+    raw_value = _get_env_text(name)
+    if not raw_value:
+        return default
+    try:
+        return float(raw_value)
+    except ValueError:
+        logger.warning("Invalid %s=%r; using default %s", name, raw_value, default)
+        return default
+
+
 @dataclass(slots=True)
 class SessionProfile:
     interviewer_style: str = "standard"
@@ -86,6 +98,15 @@ class SessionProfile:
     job_position: str = ""
     jd_summary: str = ""
     resume_content: str = ""
+
+
+@dataclass(slots=True)
+class AnamAccountConfig:
+    api_key: str
+    avatar_id: str
+    api_url: str = ""
+    avatar_name: str = "avatar"
+    avatar_model: str = ""
 
 
 @dataclass(slots=True)
@@ -126,6 +147,20 @@ class ModelConfig:
     anam_avatar_id: str = _get_env_text("ANAM_AVATAR_ID")
     anam_avatar_name: str = _get_env_text("ANAM_AVATAR_NAME", "avatar")
     anam_avatar_model: str = _get_env_text("ANAM_AVATAR_MODEL")
+    anam_accounts_json: str = _get_env_text("ANAM_ACCOUNTS_JSON")
+    anam_api_keys: str = _get_env_text("ANAM_API_KEYS")
+    anam_avatar_ids: str = _get_env_text("ANAM_AVATAR_IDS")
+    anam_api_urls: str = _get_env_text("ANAM_API_URLS")
+    anam_avatar_names: str = _get_env_text("ANAM_AVATAR_NAMES")
+    anam_avatar_models: str = _get_env_text("ANAM_AVATAR_MODELS")
+    anam_recycle_before_timeout_seconds: float = _get_optional_float_env(
+        "ANAM_RECYCLE_BEFORE_TIMEOUT_SECONDS",
+        165.0,
+    )
+    anam_restart_backoff_seconds: float = _get_optional_float_env(
+        "ANAM_RESTART_BACKOFF_SECONDS",
+        5.0,
+    )
 
 
 config = ModelConfig()
@@ -455,40 +490,422 @@ def _build_turn_handling_options() -> TurnHandlingOptions:
     return turn_handling
 
 
-def _build_anam_avatar_session(config_obj: ModelConfig, session_profile: SessionProfile) -> Any | None:
-    if session_profile.mode != "video":
-        return None
+def _split_env_items(raw_value: str) -> list[str]:
+    text = raw_value.strip()
+    if not text:
+        return []
+
+    try:
+        parsed = json.loads(text)
+    except Exception:
+        parsed = None
+
+    if isinstance(parsed, list):
+        return [str(item).strip() for item in parsed if str(item).strip()]
+
+    normalized = text.replace("\n", ",").replace(";", ",")
+    return [item.strip() for item in normalized.split(",") if item.strip()]
+
+
+def _value_for_index(values: list[str], index: int, default: str = "") -> str:
+    if not values:
+        return default
+    if index < len(values):
+        return values[index]
+    if len(values) == 1:
+        return values[0]
+    return default
+
+
+def _resolve_anam_accounts(config_obj: ModelConfig) -> list[AnamAccountConfig]:
+    accounts: list[AnamAccountConfig] = []
+
+    raw_accounts_json = config_obj.anam_accounts_json.strip()
+    if raw_accounts_json:
+        try:
+            parsed_accounts = json.loads(raw_accounts_json)
+        except Exception:
+            logger.warning("Invalid ANAM_ACCOUNTS_JSON; ignoring it", exc_info=True)
+        else:
+            if isinstance(parsed_accounts, list):
+                for index, item in enumerate(parsed_accounts):
+                    if not isinstance(item, dict):
+                        logger.warning("Ignoring ANAM_ACCOUNTS_JSON entry %s because it is not an object", index)
+                        continue
+
+                    api_key = str(
+                        item.get("api_key") or item.get("apiKey") or item.get("key") or ""
+                    ).strip()
+                    avatar_id = str(
+                        item.get("avatar_id") or item.get("avatarId") or item.get("id") or ""
+                    ).strip()
+                    if not api_key or not avatar_id:
+                        logger.warning(
+                            "Ignoring ANAM_ACCOUNTS_JSON entry %s because api_key or avatar_id is missing",
+                            index,
+                        )
+                        continue
+
+                    accounts.append(
+                        AnamAccountConfig(
+                            api_key=api_key,
+                            avatar_id=avatar_id,
+                            api_url=str(item.get("api_url") or item.get("apiUrl") or "").strip(),
+                            avatar_name=str(item.get("avatar_name") or item.get("avatarName") or item.get("name") or "avatar").strip() or "avatar",
+                            avatar_model=str(item.get("avatar_model") or item.get("avatarModel") or "").strip(),
+                        )
+                    )
+            else:
+                logger.warning("ANAM_ACCOUNTS_JSON must be a JSON list; ignoring it")
+
+    if accounts:
+        return accounts
+
+    numbered_accounts: list[AnamAccountConfig] = []
+    for index in range(1, 11):
+        api_key = _get_env_text(f"ANAM_ACCOUNT_{index}_API_KEY")
+        avatar_id = _get_env_text(f"ANAM_ACCOUNT_{index}_AVATAR_ID")
+        api_url = _get_env_text(f"ANAM_ACCOUNT_{index}_API_URL")
+        avatar_name = _get_env_text(f"ANAM_ACCOUNT_{index}_AVATAR_NAME")
+        avatar_model = _get_env_text(f"ANAM_ACCOUNT_{index}_AVATAR_MODEL")
+
+        if not api_key and not avatar_id and not api_url and not avatar_name and not avatar_model:
+            continue
+
+        if not api_key or not avatar_id:
+            logger.warning(
+                "Skipping ANAM_ACCOUNT_%s because api_key or avatar_id is missing",
+                index,
+            )
+            continue
+
+        numbered_accounts.append(
+            AnamAccountConfig(
+                api_key=api_key,
+                avatar_id=avatar_id,
+                api_url=api_url,
+                avatar_name=avatar_name or config_obj.anam_avatar_name or "avatar",
+                avatar_model=avatar_model,
+            )
+        )
+
+    if numbered_accounts:
+        return numbered_accounts
+
+    api_keys = _split_env_items(config_obj.anam_api_keys)
+    avatar_ids = _split_env_items(config_obj.anam_avatar_ids)
+    api_urls = _split_env_items(config_obj.anam_api_urls)
+    avatar_names = _split_env_items(config_obj.anam_avatar_names)
+    avatar_models = _split_env_items(config_obj.anam_avatar_models)
+
+    explicit_account_count = max(
+        len(api_keys),
+        len(avatar_ids),
+        len(api_urls),
+        len(avatar_names),
+        len(avatar_models),
+    )
+    for index in range(explicit_account_count):
+        api_key = _value_for_index(api_keys, index)
+        avatar_id = _value_for_index(avatar_ids, index)
+        if not api_key or not avatar_id:
+            logger.warning(
+                "Skipping Anam account %s because api_key or avatar_id is missing",
+                index + 1,
+            )
+            continue
+
+        accounts.append(
+            AnamAccountConfig(
+                api_key=api_key,
+                avatar_id=avatar_id,
+                api_url=_value_for_index(api_urls, index),
+                avatar_name=_value_for_index(avatar_names, index, config_obj.anam_avatar_name or "avatar") or "avatar",
+                avatar_model=_value_for_index(avatar_models, index, config_obj.anam_avatar_model),
+            )
+        )
+
+    if accounts:
+        return accounts
 
     if not config_obj.anam_api_key or not config_obj.anam_avatar_id:
-        logger.info(
-            "Video mode is enabled but ANAM_API_KEY/ANAM_AVATAR_ID are missing; continuing without digital avatar"
-        )
-        return None
+        return []
 
+    return [
+        AnamAccountConfig(
+            api_key=config_obj.anam_api_key,
+            avatar_id=config_obj.anam_avatar_id,
+            api_url=config_obj.anam_api_url,
+            avatar_name=config_obj.anam_avatar_name or "avatar",
+            avatar_model=config_obj.anam_avatar_model,
+        )
+    ]
+
+
+def _build_anam_avatar_session_for_account(
+    config_obj: ModelConfig,
+    session_profile: SessionProfile,
+    account: AnamAccountConfig,
+) -> Any:
     if anam is None:
         raise RuntimeError(
             "Anam avatar requested, but livekit-agents[anam] is not installed. "
             "Install livekit-agents[images,anam]~=1.5 to enable video avatars."
         )
 
-    api_url = config_obj.anam_api_url.strip() if config_obj.anam_api_url else ""
+    api_url = account.api_url.strip() or config_obj.anam_api_url.strip()
     if not api_url:
         api_url = getattr(anam, "DEFAULT_API_URL", "https://api.anam.ai")
 
     persona_config_kwargs: dict[str, Any] = {
-        "name": config_obj.anam_avatar_name or "avatar",
-        "avatarId": config_obj.anam_avatar_id,
+        "name": account.avatar_name or config_obj.anam_avatar_name or "avatar",
+        "avatarId": account.avatar_id,
     }
-    if config_obj.anam_avatar_model:
-        persona_config_kwargs["avatarModel"] = config_obj.anam_avatar_model
+    avatar_model = account.avatar_model.strip() or config_obj.anam_avatar_model.strip()
+    if avatar_model:
+        persona_config_kwargs["avatarModel"] = avatar_model
 
     avatar_kwargs: dict[str, Any] = {
         "persona_config": anam.PersonaConfig(**persona_config_kwargs),
-        "api_key": config_obj.anam_api_key,
+        "api_key": account.api_key,
         "api_url": api_url,
     }
 
     return anam.AvatarSession(**avatar_kwargs)
+
+
+def _build_anam_avatar_session(config_obj: ModelConfig, session_profile: SessionProfile) -> Any | None:
+    if session_profile.mode != "video":
+        return None
+
+    accounts = _resolve_anam_accounts(config_obj)
+    if not accounts:
+        logger.info(
+            "Video mode is enabled but no Anam accounts are configured; continuing without digital avatar"
+        )
+        return None
+
+    return _build_anam_avatar_session_for_account(config_obj, session_profile, accounts[0])
+
+
+class AnamAvatarManager:
+    def __init__(
+        self,
+        *,
+        config_obj: ModelConfig,
+        session_profile: SessionProfile,
+        session: AgentSession,
+        room: rtc.Room,
+    ) -> None:
+        self._config = config_obj
+        self._session_profile = session_profile
+        self._session = session
+        self._room = room
+        self._accounts = _resolve_anam_accounts(config_obj)
+        self._current_avatar_session: Any | None = None
+        self._current_account_index = -1
+        self._next_account_index = 0
+        self._closed = False
+        self._rotating = False
+        self._switch_lock = asyncio.Lock()
+        self._rotation_task: asyncio.Task[None] | None = None
+        self._recycle_task: asyncio.Task[None] | None = None
+        self._retry_task: asyncio.Task[None] | None = None
+
+    async def start(self) -> None:
+        if self._session_profile.mode != "video":
+            return
+
+        if not self._accounts:
+            logger.info(
+                "Video mode is enabled but no Anam accounts are configured; continuing without digital avatar"
+            )
+            return
+
+        if anam is None:
+            raise RuntimeError(
+                "Anam avatar requested, but livekit-agents[anam] is not installed. "
+                "Install livekit-agents[images,anam]~=1.5 to enable video avatars."
+            )
+
+        self._room.on("participant_disconnected", self._on_participant_disconnected)
+        await self._rotate_avatar("initial avatar start")
+
+    async def aclose(self) -> None:
+        self._closed = True
+        self._room.off("participant_disconnected", self._on_participant_disconnected)
+        await self._cancel_task("_rotation_task")
+        await self._cancel_task("_recycle_task")
+        await self._cancel_task("_retry_task")
+
+        async with self._switch_lock:
+            self._rotating = True
+            try:
+                await self._close_current_avatar_session()
+            finally:
+                self._rotating = False
+
+    def _on_participant_disconnected(self, participant: rtc.RemoteParticipant) -> None:
+        if self._closed or self._rotating:
+            return
+
+        current_identity = getattr(self._current_avatar_session, "avatar_identity", None)
+        if not current_identity or participant.identity != current_identity:
+            return
+
+        logger.info(
+            "Anam avatar participant disconnected; switching to another account",
+            extra={"participant": participant.identity, "room": self._room.name},
+        )
+        self.request_rotation("avatar participant disconnected")
+
+    def request_rotation(self, reason: str) -> None:
+        if self._closed:
+            return
+        if self._rotation_task is not None and not self._rotation_task.done():
+            return
+        self._rotation_task = asyncio.create_task(self._rotate_avatar(reason), name="anam_avatar_rotate")
+
+    async def _cancel_task(self, attr_name: str) -> None:
+        task = getattr(self, attr_name)
+        if task is None:
+            return
+        setattr(self, attr_name, None)
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    async def _close_current_avatar_session(self) -> None:
+        avatar_session = self._current_avatar_session
+        self._current_avatar_session = None
+        if avatar_session is None:
+            return
+
+        with contextlib.suppress(Exception):
+            await avatar_session.aclose()
+
+    async def _rotate_avatar(self, reason: str) -> None:
+        async with self._switch_lock:
+            if self._closed:
+                return
+
+            self._rotating = True
+            try:
+                await self._cancel_task("_recycle_task")
+                await self._cancel_task("_retry_task")
+                await self._close_current_avatar_session()
+
+                if self._closed or not self._accounts:
+                    return
+
+                if await self._start_next_available_avatar(reason):
+                    self._schedule_recycle_task()
+                else:
+                    self._schedule_retry_task(reason)
+            finally:
+                self._rotating = False
+                self._rotation_task = None
+
+    async def _start_next_available_avatar(self, reason: str) -> bool:
+        if self._closed or not self._accounts:
+            return False
+
+        account_count = len(self._accounts)
+        start_index = self._next_account_index % account_count
+        last_error: Exception | None = None
+
+        for offset in range(account_count):
+            account_index = (start_index + offset) % account_count
+            account = self._accounts[account_index]
+            avatar_session = _build_anam_avatar_session_for_account(self._config, self._session_profile, account)
+            try:
+                await avatar_session.start(self._session, room=self._room)
+            except Exception as exc:
+                last_error = exc
+                logger.exception(
+                    "Anam avatar start failed; trying the next account",
+                    extra={
+                        "reason": reason,
+                        "account_index": account_index,
+                        "avatar_name": account.avatar_name,
+                    },
+                )
+                with contextlib.suppress(Exception):
+                    await avatar_session.aclose()
+                self._next_account_index = (account_index + 1) % account_count
+                continue
+
+            self._current_avatar_session = avatar_session
+            self._current_account_index = account_index
+            self._next_account_index = (account_index + 1) % account_count
+            logger.info(
+                "Anam avatar session started",
+                extra={
+                    "reason": reason,
+                    "account_index": account_index,
+                    "avatar_name": account.avatar_name,
+                    "room": self._room.name,
+                },
+            )
+            return True
+
+        if last_error is not None:
+            logger.error(
+                "All configured Anam accounts failed; the interview will continue without a digital avatar",
+                extra={"reason": reason, "room": self._room.name},
+            )
+        return False
+
+    def _schedule_recycle_task(self) -> None:
+        if self._closed:
+            return
+        recycle_after_seconds = max(0.0, float(self._config.anam_recycle_before_timeout_seconds))
+        if recycle_after_seconds <= 0:
+            return
+
+        self._recycle_task = asyncio.create_task(
+            self._recycle_after_delay(recycle_after_seconds),
+            name="anam_avatar_recycle",
+        )
+
+    async def _recycle_after_delay(self, recycle_after_seconds: float) -> None:
+        try:
+            await asyncio.sleep(recycle_after_seconds)
+        except asyncio.CancelledError:
+            return
+        finally:
+            self._recycle_task = None
+
+        if self._closed:
+            return
+
+        self.request_rotation("scheduled recycle before timeout")
+
+    def _schedule_retry_task(self, reason: str) -> None:
+        if self._closed:
+            return
+
+        retry_after_seconds = max(0.0, float(self._config.anam_restart_backoff_seconds))
+        if retry_after_seconds <= 0:
+            return
+
+        self._retry_task = asyncio.create_task(
+            self._retry_after_delay(reason, retry_after_seconds),
+            name="anam_avatar_retry",
+        )
+
+    async def _retry_after_delay(self, reason: str, retry_after_seconds: float) -> None:
+        try:
+            await asyncio.sleep(retry_after_seconds)
+        except asyncio.CancelledError:
+            return
+        finally:
+            self._retry_task = None
+
+        if self._closed:
+            return
+
+        self.request_rotation(reason)
 
 
 @server.rtc_session(agent_name="ai-interview-3")
@@ -537,23 +954,36 @@ async def ai_interview_session(ctx: agents.JobContext) -> None:
     )
     room_options = _build_room_options(session_profile)
 
-    avatar_session = _build_anam_avatar_session(config, session_profile)
-    if avatar_session is not None:
-        _trace_log("ai_interview_session_avatar_start_enter", session_id=session_id, provider="anam")
-        try:
-            await avatar_session.start(session, room=ctx.room)
-        except Exception:
-            logger.exception("Anam avatar start failed; continuing without digital avatar")
-        else:
-            _trace_log("ai_interview_session_avatar_start_exit", session_id=session_id, provider="anam")
+    avatar_manager = AnamAvatarManager(
+        config_obj=config,
+        session_profile=session_profile,
+        session=session,
+        room=ctx.room,
+    )
+    add_shutdown_callback = getattr(ctx, "add_shutdown_callback", None)
+    if callable(add_shutdown_callback):
+        add_shutdown_callback(avatar_manager.aclose)
+
+    _trace_log("ai_interview_session_avatar_start_enter", session_id=session_id, provider="anam")
+    try:
+        await avatar_manager.start()
+    except Exception:
+        logger.exception("Anam avatar manager failed to start; continuing without digital avatar")
+    else:
+        _trace_log("ai_interview_session_avatar_start_exit", session_id=session_id, provider="anam")
 
     _trace_log("ai_interview_session_before_start", room_options=room_options, interview_context=interview_context)
 
-    await session.start(
-        room=ctx.room,
-        agent=workflow_agent,
-        room_options=room_options,
-    )
+    try:
+        await session.start(
+            room=ctx.room,
+            agent=workflow_agent,
+            room_options=room_options,
+        )
+    except Exception:
+        with contextlib.suppress(Exception):
+            await avatar_manager.aclose()
+        raise
 
     _trace_log("ai_interview_session_started", session_id=session_id, room_options=room_options)
 
