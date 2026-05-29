@@ -30,6 +30,8 @@ import java.util.Map;
 @Slf4j
 @Service
 public class UserServiceImpl implements UserService {
+    private static final BCryptPasswordEncoder PASSWORD_ENCODER = new BCryptPasswordEncoder();
+
     private final UserMapper userMapper;
     private final CodeService codeService;
     private final JwtUtils jwtUtils;
@@ -48,13 +50,11 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public String hashPassword(String password) {
-        BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
-        return encoder.encode(password);
+        return PASSWORD_ENCODER.encode(password);
     }
     @Override
     public boolean checkPassword(String password, String hashPassword) {
-        BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
-        return encoder.matches(password, hashPassword);
+        return PASSWORD_ENCODER.matches(password, hashPassword);
     }
 
     @Override

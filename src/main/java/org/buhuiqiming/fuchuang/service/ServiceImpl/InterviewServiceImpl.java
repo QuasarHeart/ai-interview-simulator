@@ -35,6 +35,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -112,20 +113,21 @@ public class InterviewServiceImpl implements InterviewService {
     @Override
     public SseEmitter startInterviewStream(String interviewId){
         System.out.println("startInterviewStream");
-        SseEmitter emitter = new SseEmitter(0L);
+        SseEmitter emitter = new SseEmitter(600_000L); // 10 分钟超时
         InterviewEntity interview = getInterviewOrElseThrow(interviewId);
         if (!"CREATED".equals(interview.getInterviewStatus())) {
             throw new ServiceException(409, "状态不允许：面试已经开始或已结束");
         }
 
         log.info("当前流程，创建会话，阶段：请求ml");
+        Long currentUserId = UserContext.get();
         executorService.execute(() -> {
             try {
                 InterviewStartRequest requestBody = InterviewStartRequest.builder()
                         .sessionId(interviewId)
                         .jobPosition(interview.getJobRole())
                         .jdSummary(interview.getJobInfo())
-                        .resumeContent(userMapper.getVitaContent(UserContext.get())) // 简历的解析文本
+                        .resumeContent(getVitaContentCached(currentUserId))
                         .interviewConfig(InterviewStartRequest.InterviewConfig.builder()
                                 .mode(interview.getMode())
                                 .analyzeEmotion(false)
@@ -152,6 +154,8 @@ public class InterviewServiceImpl implements InterviewService {
 
                             try (java.io.BufferedReader reader = new java.io.BufferedReader(
                                     new java.io.InputStreamReader(response.getBody(), java.nio.charset.StandardCharsets.UTF_8))) {
+                                StringBuilder batch = new StringBuilder();
+                                long lastFlush = System.currentTimeMillis();
                                 String line;
                                 while ((line = reader.readLine()) != null) {
                                     if (!line.startsWith("data: ")) {
@@ -170,7 +174,12 @@ public class InterviewServiceImpl implements InterviewService {
                                                 queBuffer.append(content);
                                             }
 
-                                            emitter.send(content);
+                                            batch.append(content);
+                                            if (shouldFlush(batch, lastFlush)) {
+                                                emitter.send(batch.toString());
+                                                batch.setLength(0);
+                                                lastFlush = System.currentTimeMillis();
+                                            }
                                             break;
 
                                         case "meta":
@@ -181,12 +190,14 @@ public class InterviewServiceImpl implements InterviewService {
                                             break;
 
                                         case "done":
+                                            flushBatch(emitter, batch);
                                             emitter.send("[DONE]");
-                                            startInterviewInfoHandle(interviewId, queBuffer.toString(), metaData);
+                                            startInterviewInfoHandle(interview, interviewId, queBuffer.toString(), metaData);
                                             emitter.complete();
                                             break;
 
                                         case "error":
+                                            flushBatch(emitter, batch);
                                             emitter.send("[ERROR]");
                                             emitter.completeWithError(new RuntimeException("算法端流式生成出错"));
                                             break;
@@ -209,8 +220,7 @@ public class InterviewServiceImpl implements InterviewService {
         return emitter;
     }
 
-    private void startInterviewInfoHandle(String interviewId, String question, Map<String, Object> metaData){
-        InterviewEntity interview = getInterviewOrElseThrow(interviewId);
+    private void startInterviewInfoHandle(InterviewEntity interview, String interviewId, String question, Map<String, Object> metaData){
         int turnsNum = interview.getTurnsNumber() + 1;
         interview.setTurnsNumber(turnsNum);
         interview.setInterviewStatus("RUNNING");
@@ -239,7 +249,7 @@ public class InterviewServiceImpl implements InterviewService {
                 .sessionId(interviewId)
                 .jobPosition(interview.getJobRole())
                 .jdSummary(interview.getJobInfo())
-                .resumeContent(userMapper.getVitaContent(UserContext.get())) // 简历的解析文本
+                .resumeContent(getVitaContentCached(UserContext.get())) // 简历的解析文本
                 .interviewConfig(InterviewStartRequest.InterviewConfig.builder()
                         .mode(interview.getMode())
                         .analyzeEmotion(false)
@@ -291,46 +301,43 @@ public class InterviewServiceImpl implements InterviewService {
 
     @Override
     public List<InterviewFollowByRequest.HistoryData.HistoryItem> getInterviewHistory(String interviewId) {
-        List<InterviewFollowByRequest.HistoryData.HistoryItem> list = new ArrayList<>();
-
         InterviewEntity interview = getInterviewOrElseThrow(interviewId);
         int turnsNumber = interview.getTurnsNumber();
-        int count = historyTurnsCount;
+        if (turnsNumber <= 0) {
+            return List.of();
+        }
 
-        while (count > 0 && turnsNumber > 0) {
-            InterviewTurnsEntity interviewTurnsEntity = interviewTurnsRepository.findByInterviewIdAndTurnNumber(interviewId, turnsNumber);
-            if (interviewTurnsEntity == null) {
-                log.error("interviewTurnsEntity is null for interviewId: {}, turn: {}", interviewId, turnsNumber);
-                throw new ServiceException(500, "存储流程出错，请重试");
-            }
+        int startTurn = Math.max(1, turnsNumber - historyTurnsCount + 1);
+        List<InterviewTurnsEntity> recentTurns = interviewTurnsRepository
+                .findByInterviewIdAndTurnNumberBetweenOrderByTurnNumberDesc(interviewId, startTurn, turnsNumber);
 
-            String answerText = interviewTurnsEntity.getAnswerText() != null ? interviewTurnsEntity.getAnswerText() : "";
-            String questionText = interviewTurnsEntity.getQuestion() != null ? interviewTurnsEntity.getQuestion() : "";
+        List<InterviewFollowByRequest.HistoryData.HistoryItem> list = new ArrayList<>();
+        for (InterviewTurnsEntity turn : recentTurns) {
+            String answerText = turn.getAnswerText() != null ? turn.getAnswerText() : "";
+            String questionText = turn.getQuestion() != null ? turn.getQuestion() : "";
 
             InterviewFollowByRequest.HistoryData.HistoryItem.FlowControl historyFlowControl =
                     InterviewFollowByRequest.HistoryData.HistoryItem.FlowControl.builder()
-                            .stageTransition(interviewTurnsEntity.getStageTransition())
-                            .targetStage(interviewTurnsEntity.getTargetStage())
+                            .stageTransition(turn.getStageTransition())
+                            .targetStage(turn.getTargetStage())
                             .build();
 
-            InterviewFollowByRequest.HistoryData.HistoryItem item = InterviewFollowByRequest.HistoryData.HistoryItem.builder()
-                    .roundId(turnsNumber)
+            list.add(InterviewFollowByRequest.HistoryData.HistoryItem.builder()
+                    .roundId(turn.getTurnNumber())
                     .assistantContent(questionText)
                     .userContent(answerText)
                     .flowControl(historyFlowControl)
-                    .build();
-
-            list.add(0, item);
-
-            turnsNumber--;
-            count--;
+                    .build());
         }
+        // 数据库返回的是 DESC，需要按轮次 ASC 排序以保证时间顺序
+        list.sort(java.util.Comparator.comparingInt(
+                InterviewFollowByRequest.HistoryData.HistoryItem::getRoundId));
         return list;
     }
 
     @Override
     public SseEmitter streamPythonResponse(String interviewId, String answerText){
-        SseEmitter emitter = new SseEmitter(0L);
+        SseEmitter emitter = new SseEmitter(300_000L); // 5 分钟超时
         InterviewEntity interview = getInterviewOrElseThrow(interviewId);
 
         if(!"RUNNING".equals(interview.getInterviewStatus())){
@@ -342,7 +349,7 @@ public class InterviewServiceImpl implements InterviewService {
         interviewTurnsEntity.setAnswerText(answerText);
 
         Long currentUserId = UserContext.get();
-        String resumeContent = userMapper.getVitaContent(currentUserId);
+        String resumeContent = getVitaContentCached(currentUserId);
 
         interviewTurnsRepository.save(interviewTurnsEntity);
 
@@ -354,7 +361,7 @@ public class InterviewServiceImpl implements InterviewService {
                 .ofStrings(messageBody)
                 .withStreamKey("interview:eval:stream");
         stringRedisTemplate.opsForStream().add(record);
-        stringRedisTemplate.opsForStream().trim("interview:eval:stream", 1200);
+        stringRedisTemplate.opsForStream().trim("interview:eval:stream", 1200, true);
         log.info("已将评价任务投递到 MQ, interviewId: {}, turn: {}", interviewId, currentTurn);
 
         executorService.execute(() -> {
@@ -401,6 +408,8 @@ public class InterviewServiceImpl implements InterviewService {
 
                             try (java.io.BufferedReader reader = new java.io.BufferedReader(
                                     new java.io.InputStreamReader(response.getBody(), java.nio.charset.StandardCharsets.UTF_8))){
+                                StringBuilder batch = new StringBuilder();
+                                long lastFlush = System.currentTimeMillis();
                                 String line;
                                 while((line = reader.readLine()) != null){
                                     if (!line.startsWith("data: ")) {
@@ -421,7 +430,12 @@ public class InterviewServiceImpl implements InterviewService {
                                                 feeBuffer.append(content);
                                             }
 
-                                            emitter.send(content);
+                                            batch.append(content);
+                                            if (shouldFlush(batch, lastFlush)) {
+                                                emitter.send(batch.toString());
+                                                batch.setLength(0);
+                                                lastFlush = System.currentTimeMillis();
+                                            }
                                             break;
 
                                         case "meta":
@@ -435,19 +449,19 @@ public class InterviewServiceImpl implements InterviewService {
                                             break;
 
                                         case "done":
+                                            flushBatch(emitter, batch);
                                             if(metaData.containsKey("target_stage") && metaData.get("target_stage").toString().equals("end")){
                                                 emitter.send("[END]");
-                                                saveTurnMetaData(interviewId, queBuffer.toString(), metaData);
+                                                saveTurnMetaData(interview, interviewId, queBuffer.toString(), metaData);
 
-                                                InterviewEntity endInterview = getInterviewOrElseThrow(interviewId);
-                                                endInterview.setInterviewStatus("WAITING_REPORT");
-                                                endInterview.setDuration(Duration.between(endInterview.getCreateTime(), LocalDateTime.now()));
-                                                interviewRepository.save(endInterview);
+                                                interview.setInterviewStatus("WAITING_REPORT");
+                                                interview.setDuration(Duration.between(interview.getCreateTime(), LocalDateTime.now()));
+                                                interviewRepository.save(interview);
 
                                                 self.tryTriggerReportGeneration(interviewId);
                                             } else{
                                                 emitter.send("[DONE]");
-                                                saveTurnMetaData(interviewId, queBuffer.toString(), metaData);
+                                                saveTurnMetaData(interview, interviewId, queBuffer.toString(), metaData);
                                             }
 
                                             emitter.complete();
@@ -455,6 +469,7 @@ public class InterviewServiceImpl implements InterviewService {
                                             break;
 
                                         case "error":
+                                            flushBatch(emitter, batch);
                                             emitter.send("[ERROR]");
                                             emitter.completeWithError(new RuntimeException("算法端流式生成出错"));
                                             break;
@@ -477,8 +492,7 @@ public class InterviewServiceImpl implements InterviewService {
         return emitter;
     }
 
-    private void saveTurnMetaData(String interviewId, String queBuffer, Map<String, Object> metaData){
-        InterviewEntity interview = getInterviewOrElseThrow(interviewId);
+    private void saveTurnMetaData(InterviewEntity interview, String interviewId, String queBuffer, Map<String, Object> metaData){
         int turnsNum = interview.getTurnsNumber() + 1;
 
         interview.setTurnsNumber(turnsNum);
@@ -518,7 +532,7 @@ public class InterviewServiceImpl implements InterviewService {
     public void processEvaluationTask(String interviewId, int turnNumber, String messageId){
         InterviewEntity interview = getInterviewOrElseThrow(interviewId);
         InterviewTurnsEntity turn = interviewTurnsRepository.findByInterviewIdAndTurnNumber(interviewId, turnNumber);
-        String resumeContent = userMapper.getVitaContent(interview.getUserId());
+        String resumeContent = getVitaContentCached(interview.getUserId());
 
         getTurnsJudgement(interview, turn, resumeContent);
         interviewTurnsRepository.save(turn);
@@ -673,7 +687,7 @@ public class InterviewServiceImpl implements InterviewService {
                 .jdSummary(interview.getJobInfo())
                 .totalRounds(roundResults.size())
                 .interviewDurationSeconds(interview.getDuration() != null ? (int) interview.getDuration().getSeconds() : 0)
-                .resumeContent(userMapper.getVitaContent(interview.getUserId()))
+                .resumeContent(getVitaContentCached(interview.getUserId()))
                 .build();
 
         return GenerateReportRequest.builder()
@@ -1238,5 +1252,34 @@ public class InterviewServiceImpl implements InterviewService {
             return 0f;
         }
         return stat[0] / stat[1];
+    }
+
+    private String getVitaContentCached(Long userId) {
+        try {
+            String cacheKey = "userVita:content:" + userId;
+            String cached = stringRedisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) {
+                return cached;
+            }
+            String content = userMapper.getVitaContent(userId);
+            if (content != null) {
+                stringRedisTemplate.opsForValue().set(cacheKey, content, 1, TimeUnit.HOURS);
+            }
+            return content;
+        } catch (Exception e) {
+            log.warn("Redis 缓存读取失败，降级为直接查 DB, userId: {}", userId, e);
+            return userMapper.getVitaContent(userId);
+        }
+    }
+
+    private static boolean shouldFlush(StringBuilder batch, long lastFlush) {
+        return batch.length() >= 20 || (System.currentTimeMillis() - lastFlush) >= 50;
+    }
+
+    private static void flushBatch(SseEmitter emitter, StringBuilder batch) throws java.io.IOException {
+        if (batch.length() > 0) {
+            emitter.send(batch.toString());
+            batch.setLength(0);
+        }
     }
 }
