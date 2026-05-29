@@ -1,7 +1,7 @@
 package org.buhuiqiming.fuchuang.service.ServiceImpl;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.ChatModel;
@@ -26,7 +26,7 @@ public class LLMCallServiceImpl_2 implements LLMCallService {
     private final UserMapper userMapper;
     private final RedisTemplate<String, String> redisTemplate;
     private final OpenAIClient client;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     private static final String SYSTEM_PROMPT =
             "你是一个专业的简历解析助手。你的任务是从 OCR 提取的杂乱文本中抽取出结构化的简历信息。" +
@@ -60,13 +60,14 @@ public class LLMCallServiceImpl_2 implements LLMCallService {
                     "5. overall_score为满分10分的评分，保留1位小数" +
                     "6. 所有字段都是数组格式，即使只有一条也要用数组表示";
 
-    public LLMCallServiceImpl_2(UserMapper userMapper, RedisTemplate redisTemplate) {
+    public LLMCallServiceImpl_2(UserMapper userMapper, RedisTemplate redisTemplate, ObjectMapper objectMapper) {
         this.client = OpenAIOkHttpClient.builder()
                 .apiKey(System.getenv("DEEPSEEK_API_KEY"))
-                .baseUrl("https://api.deepseek.com/v1")
+                .baseUrl("https://api.deepseek.com")
                 .build();
         this.userMapper = userMapper;
         this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -241,7 +242,7 @@ public class LLMCallServiceImpl_2 implements LLMCallService {
         ));
 
         ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
-                .model(ChatModel.of("deepseek-chat"))
+                .model(ChatModel.of("deepseek-v4-flash"))
                 .messages(messages)
                 .temperature(temperature)
                 .build();
@@ -274,6 +275,7 @@ public class LLMCallServiceImpl_2 implements LLMCallService {
             log.info("开始调用大模型解析简历，用户id:{}", userId);
             String parsedResume = parseResume(text);
             userMapper.updateVitaContent(parsedResume, userId);
+            redisTemplate.delete("userVita:content:" + userId);
 
             // 2. 分析简历优缺点（返回列表）
             log.info("开始分析简历优缺点，用户id:{}", userId);

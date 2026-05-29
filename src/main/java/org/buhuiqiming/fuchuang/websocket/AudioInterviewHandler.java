@@ -1,5 +1,6 @@
 package org.buhuiqiming.fuchuang.websocket;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.websocket.ContainerProvider;
 import jakarta.websocket.WebSocketContainer;
 import lombok.extern.slf4j.Slf4j;
@@ -18,18 +19,19 @@ public class AudioInterviewHandler extends BinaryWebSocketHandler {
 
     private static final String PYTHON_WS_URL = "ws://localhost:8000/ws/interview/audio/python/";
 
-    @Override
-    public void afterConnectionEstablished(WebSocketSession session) throws Exception {
-        // 从 attributes 中获取用户 ID
-        Long userId = (Long) session.getAttributes().get("userId");
-        log.info("WebSocket 连接建立完成，用户 ID: {}, Session ID: {}", userId, session.getId());
-
-        // 当Python回传的时候，设置容器
+    @PostConstruct
+    public void configureWebSocketContainer() {
         WebSocketContainer container = ContainerProvider.getWebSocketContainer();
         container.setDefaultMaxBinaryMessageBufferSize(10 * 1024 * 1024);
         container.setDefaultMaxTextMessageBufferSize(1024 * 1024);
+    }
 
-        StandardWebSocketClient client = new StandardWebSocketClient(container);
+    @Override
+    public void afterConnectionEstablished(WebSocketSession session) throws Exception {
+        Long userId = (Long) session.getAttributes().get("userId");
+        log.info("WebSocket 连接建立完成，用户 ID: {}, Session ID: {}", userId, session.getId());
+
+        StandardWebSocketClient client = new StandardWebSocketClient();
         PythonClientHandler pythonClientHandler = new PythonClientHandler(session);
 
         try{

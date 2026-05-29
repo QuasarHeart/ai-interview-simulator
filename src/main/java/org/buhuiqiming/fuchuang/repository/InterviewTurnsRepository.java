@@ -16,6 +16,9 @@ public interface InterviewTurnsRepository extends JpaRepository<InterviewTurnsEn
     // 按照interviewId中的轮次顺序先后排序后返回interviewTurnsEntity
     List<InterviewTurnsEntity> findByInterviewIdOrderByTurnNumberAsc(String interviewId);
 
+    // 批量按轮次范围查询，避免 N+1
+    List<InterviewTurnsEntity> findByInterviewIdAndTurnNumberBetweenOrderByTurnNumberDesc(String interviewId, int startTurn, int endTurn);
+
     // 统计某个面试中有多少还未评价的轮次（以evaluationResult是否为空为准）
     @Query("SELECT COUNT(t) FROM InterviewTurnsEntity t " +
             "WHERE t.interviewId = :interviewId " +

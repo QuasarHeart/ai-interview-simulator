@@ -1,6 +1,9 @@
 spring:
   application:
     name: Fuchuang
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: false
   servlet:
     multipart:
         max-file-size: 10MB
@@ -13,9 +16,24 @@ spring:
       ddl-auto: update
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 5
+      connection-timeout: 5000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      keepalive-time: 30000
+  data:
+    redis:
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 8
+          min-idle: 2
+          max-wait: 3000ms
   mybatis:
     configuration:
-      log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+      log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
   pagehelper:
     reasonable: true
     helper-dialect: mysql
@@ -38,3 +56,20 @@ spring:
           timeout: 5000           # 发送邮件超时 5s
           writetimeout: 5000      # 写入数据超时 5s
 
+server:
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/plain
+    min-response-size: 1024
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
