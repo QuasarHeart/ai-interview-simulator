@@ -25,22 +25,7 @@ services:
     container_name: interview-agent-v2
     env_file:
       - .env.ml-service
-    environment:
-      - HTTP_PROXY=http://host.docker.internal:7897
-      - HTTPS_PROXY=http://host.docker.internal:7897
-      - NO_PROXY=localhost,127.0.0.1,interview-api-v1
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
     depends_on:
       interview-api-v1:
         condition: service_healthy
     restart: unless-stopped
-    networks:
-      - ml_service
-
-networks:
-  ml_service:
-    external: true
