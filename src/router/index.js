@@ -16,8 +16,8 @@ const router = createRouter({
   history: createAppHistory(),
   routes: [
     {
-      path: '/official',
-      name: 'official',
+      path: '/offical',
+      name: 'offical',
       component: () => import('../views/official/OfficialSiteView.vue')
     },
     {
@@ -29,7 +29,7 @@ const router = createRouter({
       path: '/',
       component: MainLayout,
       meta: { requiresAuth: true },
-      redirect: () => (isElectronRuntime() ? '/dashboard' : '/official'),
+      redirect: () => (isElectronRuntime() ? '/dashboard' : '/offical'),
       children: [
         {
           path: 'dashboard',
@@ -78,11 +78,11 @@ router.beforeEach((to, from) => {
 
   // 兼容根路径先重定向到 dashboard 的场景：浏览器仍应展示官网。
   if (!inElectron && redirectedFromRoot && to.path === '/dashboard') {
-    return '/official'
+    return '/offical'
   }
 
   // Electron 版本不展示官网。
-  if (inElectron && to.path === '/official') {
+  if (inElectron && to.path === '/offical') {
     return token ? '/dashboard' : '/login'
   }
 

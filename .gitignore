@@ -14,8 +14,12 @@ dist-electron
 release*
 *.local
 
+# 安装包与可执行文件（体积过大，不入库）
+*.exe
 
-docs/
+# 设计文档：只保留 docx，md 不入库
+docs/*
+!docs/*.docx
 
 # Editor directories and files
 .vscode/*
