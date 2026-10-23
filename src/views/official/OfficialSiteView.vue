@@ -2,8 +2,8 @@
   <div class="official-redesign">
     <header class="site-nav">
       <button class="brand" @click="scrollToBlock('hero')">
-        <img :src="imageUrl('logo.jpg')" alt="AI模拟面试平台" />
-        <span>AI模拟面试平台</span>
+        <img :src="imageUrl('logo.jpg')" alt="伯乐智面" />
+        <span>伯乐智面</span>
       </button>
 
       <nav class="nav-links">
@@ -79,7 +79,7 @@
           <p class="segment-kicker">核心能力</p>
           <h2>不是堆功能，而是把求职训练串成闭环</h2>
           <p>
-            AI模拟面试平台围绕“准备 - 对练 - 复盘 - 迭代”设计产品路径，避免只给结论不讲策略。你可以直接看到每次问答背后的能力维度变化。
+            伯乐智面围绕“准备 - 对练 - 复盘 - 迭代”设计产品路径，避免只给结论不讲策略。你可以直接看到每次问答背后的能力维度变化。
           </p>
         </div>
 
@@ -232,7 +232,7 @@
     <section class="final-cta" aria-label="官网底部行动引导">
       <div class="final-cta-inner">
         <p class="final-cta-kicker">Ready to Start</p>
-        <h2>用AI模拟面试平台，把每次面试都变成进步曲线</h2>
+        <h2>用伯乐智面，把每次面试都变成进步曲线</h2>
         <p class="final-cta-desc">
           从模拟问答到报告复盘，一套流程覆盖你的求职训练周期。现在开始，下一场面试会更稳。
         </p>
@@ -244,6 +244,20 @@
         </div>
       </div>
     </section>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <div class="footer-content">
+          <p class="footer-text">© 2026 伯乐智面</p>
+          <div class="icp-info">
+            <p>
+              <span>ICP备案号：<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">蜀ICP备2026032709号</a></span>
+
+            </p>
+          </div>
+        </div>
+      </div>
+    </footer>
   </div>
 </template>
 
@@ -252,9 +266,9 @@ import { onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
-const localDownloadUrl = '/downloads/AI模拟面试平台-Setup.exe'
-const downloadUrl = import.meta.env.VITE_APP_DOWNLOAD_URL || (import.meta.env.DEV ? localDownloadUrl : '')
-const downloadFileName = 'AI模拟面试平台-Setup.exe'
+const localDownloadUrl = '/downloads/伯乐智面-Setup.exe'
+const downloadUrl = import.meta.env.VITE_APP_DOWNLOAD_URL || localDownloadUrl
+const downloadFileName = '伯乐智面-Setup.exe'
 
 const imageUrl = (name) => new URL(`../../assets/images/${name}`, import.meta.url).href
 
@@ -385,7 +399,7 @@ const architectureBlocks = [
 
 const faqs = [
   {
-    q: 'AI模拟面试平台适用于什么岗位？',
+    q: '伯乐智面适用于什么岗位？',
     a: '覆盖大量技术岗位方向，包括后端、前端、测试、DevOps、数据与算法等，具体岗位可参考上方“适配岗位”模块。'
   },
   {
@@ -2069,6 +2083,87 @@ section[id] {
     height: 30px;
     font-size: 13px;
   }
+}
 
+/* Footer ICP 备案信息 */
+.site-footer {
+  background: linear-gradient(145deg, #f0f8ff, #e8f3ff);
+  border-top: 1px solid rgba(43, 120, 196, 0.12);
+  padding: 24px;
+}
+
+.footer-inner {
+  max-width: 1220px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.footer-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.footer-text {
+  margin: 0;
+  font-size: 14px;
+  color: rgba(15, 34, 59, 0.72);
+  font-weight: 500;
+}
+
+.icp-info {
+  margin: 0;
+}
+
+.icp-info p {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(15, 34, 59, 0.68);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.icp-info span {
+  display: inline-flex;
+  align-items: center;
+}
+
+.icp-info a {
+  color: #2d93ff;
+  text-decoration: none;
+  transition: color 0.25s ease;
+}
+
+.icp-info a:hover {
+  color: #1d73df;
+  text-decoration: underline;
+}
+
+.divider {
+  color: rgba(15, 34, 59, 0.24);
+  margin: 0 4px;
+}
+
+@media (max-width: 560px) {
+  .site-footer {
+    padding: 16px;
+  }
+
+  .footer-text {
+    font-size: 12px;
+  }
+
+  .icp-info p {
+    font-size: 11px;
+    gap: 4px;
+  }
+
+  .divider {
+    margin: 0 2px;
+  }
 }
 </style>

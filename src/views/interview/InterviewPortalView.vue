@@ -149,8 +149,10 @@
       <!-- 场景 A：视频通话模式 (展示 3D 影棚) -->
       <!-- ============================================== -->
       <template v-if="currentMode === 'video'">
-        <div class="studio-3d-wrapper" style="width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1;">
-          <Interviewer3D />
+        <!-- === [新代码，替换为 AI 视频流容器] === -->
+        <div class="ai-video-wrapper" style="width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; background: #1e293b;">
+          <!-- 这个 video 标签就是大模型的高清屏幕！ -->
+          <video ref="aiVideoRef" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
         </div>
 
         <div class="status-overlay" style="position: absolute; top: 30px; left: 50%; transform: translateX(-50%); z-index: 2; text-align: center; background: rgba(30, 41, 59, 0.6); padding: 12px 24px; border-radius: 30px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.1);">
@@ -333,7 +335,7 @@ import { convertBlobToPcmWav16kMono } from '../../utils/audio'
 import { forceFinishInterview } from '../../api/interview'
 import * as echarts from 'echarts'
 import html2pdf from 'html2pdf.js'
-import Interviewer3D from '../../components/Interviewer3D.vue'
+// import Interviewer3D from '../../components/Interviewer3D.vue'
 import { onBeforeRouteLeave, useRouter } from 'vue-router' // 补充 useRouter
 
 import MarkdownIt from 'markdown-it'
@@ -357,6 +359,7 @@ const inputRef = ref(null)
 const scrollRef = ref(null)
 // [新增] 用于绑定 AI 音频轨道的 DOM 引用
 const remoteAudioRef = ref(null)
+const aiVideoRef = ref(null) // [新增] AI 面试官的高清画面引用
 
 const isVoiceMode = ref(false) 
 const isRecording = ref(false) 
@@ -697,6 +700,17 @@ const renderMarkdown = (text) => text ? md.render(text) : ''
   }
   }, { immediate: true })
 
+watch(() => interviewStore.remoteVideoTrack, (newTrack, oldTrack) => {
+  // 如果之前有旧轨道，先解绑
+  if (oldTrack) oldTrack.detach() 
+  
+  // 如果收到了新视频轨道，且页面上的 video 标签准备好了，直接绑定播放！
+  if (newTrack && aiVideoRef.value) {
+    newTrack.attach(aiVideoRef.value)
+    console.log('🎬 实战联调：真实的 LiveKit 视频流已成功挂载！数字人画面出来了！')
+  }
+}, { immediate: true })
+
 onMounted(() => {
   if (typeof window !== 'undefined') {
     setInitialVideoWindowPosition()
@@ -884,7 +898,10 @@ const enterReportView = (reportData) => {
     cancelRecording()
   }
 
-  // 标记报告已生成，允许正常导航
+  // 报告已生成后，彻底清掉“面试进行中”的全局状态，避免侧边栏继续误拦截
+  interviewStore.currentInterviewId = null
+  interviewStore.isWaitingReport = false
+  interviewStore.isGeneratingReport = false
   interviewStore.isReportReady = true
   
   isStarted.value = false

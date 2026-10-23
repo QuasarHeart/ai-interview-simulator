@@ -6,7 +6,7 @@
       <div class="dashboard-card intro-card">
         <div class="intro-content">
           <h2>Hello, {{ username }}! 👋</h2>
-          <p class="subtitle">欢迎回到 AI 模拟面试平台</p>
+          <p class="subtitle">欢迎回到伯乐智面</p>
           <div class="mission-box">
             <p><strong>核心宗旨：</strong> 融合多模态 AI 技术，沉浸式面试环境，精准评估技术能力与表达逻辑，助你斩获心仪 Offer。</p>
           </div>

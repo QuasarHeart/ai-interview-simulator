@@ -36,7 +36,7 @@
       <div class="sidebar-header">
         <img src="@/assets/images/logo.jpg" class="logo-image" alt="Logo" />
         <div class="logo-text-wrapper">
-          <span class="logo-text">AI 智面</span>
+          <span class="logo-text">伯乐智面</span>
         </div>
       </div>
 

@@ -16,7 +16,7 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     }
   },
-  // 刚才配置的消除警告的代码保留即可
+  // 刚才配置的消除警告的代码保留即可v 
   build: {
     chunkSizeWarningLimit: 1500, 
     rollupOptions: {

@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 const projectRoot = process.cwd()
-const installerPath = path.join(projectRoot, 'dist', 'downloads', 'AI模拟面试平台-Setup.exe')
+const installerPath = path.join(projectRoot, 'dist', 'downloads', '伯乐智面-Setup.exe')
 const downloadsDir = path.dirname(installerPath)
 
 async function removeIfExists(targetPath) {
@@ -31,4 +31,4 @@ async function removeDirIfEmpty(targetDir) {
 await removeIfExists(installerPath)
 await removeDirIfEmpty(downloadsDir)
 
-console.log('[prune] removed dist/downloads/AI模拟面试平台-Setup.exe')
+console.log('[prune] removed dist/downloads/伯乐智面-Setup.exe')

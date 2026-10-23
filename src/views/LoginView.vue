@@ -47,7 +47,7 @@
         <!-- 核心修改：独立放在左上角的角标 Logo -->
         <img src="@/assets/images/logo.jpg" class="corner-logo" alt="Logo" />
         
-        <h1 class="app-title">AI 模拟面试平台</h1>
+        <h1 class="app-title">伯乐智面</h1>
         <h2 class="form-title">用户登入</h2>
         
         <el-form ref="loginFormRef" :model="loginForm" :rules="rules" size="large" class="form-content">
@@ -88,7 +88,7 @@
         <!-- 核心修改：独立放在左上角的角标 Logo -->
         <img src="@/assets/images/logo.jpg" class="corner-logo" alt="Logo" />
         
-        <h1 class="app-title">AI 模拟面试平台</h1>
+        <h1 class="app-title">伯乐智面</h1>
         <h2 class="form-title">注册账号</h2>
         
         <el-form ref="registerFormRef" :model="registerForm" :rules="rules" size="large" class="form-content">
