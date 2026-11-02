@@ -13,6 +13,7 @@ rules: |
   4. overall_score 必须为数值（0-100），不得使用 Markdown 或字符串。
   5. 结论必须基于 round_results 可追溯，不得臆造。
   6. hiring_recommendation 仅可为：Strong Hire | Hire | Weak Hire | No Hire。
+  7.如果没有优势也可以客观说明没有优势
 
 format_requirements: |
   {

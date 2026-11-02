@@ -197,7 +197,7 @@ class LLMEngine:
             raise ValueError("DASHSCOPE_API_KEY 未配置，服务无法启动")
 
         self.base_url = os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
-        self.model = os.getenv("JUDGE_MODEL", "qwen-turbo")
+        self.model = os.getenv("JUDGE_MODEL", "qwen-flash")
         self.temperature = float(os.getenv("SCORING_TEMPERATURE", "1.0"))
         self.request_timeout = float(os.getenv("LLM_REQUEST_TIMEOUT_SECONDS", "30"))
         self.max_retries = int(os.getenv("LLM_MAX_RETRIES", "1"))
