@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.buhuiqiming.fuchuang.mapper.MessageMapper">
+        <update id="init_message">
+            CREATE TABLE IF NOT EXISTS chat_message(
+            message_id BIGINT PRIMARY KEY AUTO_INCREMENT,
+            session_id int NOT NULL,
+            role VARCHAR(20) NOT NULL COMMENT "system,user,assistant",
+            content TEXT NOT NULL COMMENT "消息正文，图片语音则是COS的URL",
+            msg_type VARCHAR(20) COMMENT "text,image,audio",
+            parent_id BIGINT,
+            tokens INT COMMENT "用于计费或控制上下文长度",
+            create_time TIMESTAMP COMMENT "物理排序依据"
+            );
+        </update>
+        <resultMap id="MyMessage" type="org.buhuiqiming.fuchuang.entity.MyMessage">
+            <id property="messageId" column="message_id"/>
+            <result property="sessionId" column="session_id"/>
+            <result property="role" column="role"/>
+            <result property="content" column="content"/>
+            <result property="msgType" column="msg_type"/>
+            <result property="parentId" column="parent_id"/>
+            <result property="tokens" column="tokens"/>
+            <result property="createTime" column="create_time"/>
+        </resultMap>
+        <select id="getMessageBySessionIdLimitByNum" resultMap="MyMessage">
+            SELECT role,content FROM chat_message WHERE session_id = #{sessionId} AND role != 'system' ORDER BY create_time
+            <if test="num!=null">
+                LIMIT #{num}
+            </if>
+        </select>
+
+        <select id="getMessageOfSystem"  resultMap="MyMessage">
+            SELECT role,content FROM chat_message WHERE session_id = #{sessionId} AND role = 'system'
+        </select>
+
+
+</mapper>

@@ -1,0 +1,32 @@
+package org.buhuiqiming.fuchuang.service;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.connection.stream.MapRecord;
+import org.springframework.data.redis.stream.StreamListener;
+import org.springframework.stereotype.Component;
+
+@Slf4j
+@Component
+public class EvaluationStreamConsumer implements StreamListener<String, MapRecord<String, String, String>> {
+
+    @Autowired
+    private InterviewService interviewService;
+
+    @Override
+    public void onMessage(MapRecord<String, String, String> message) {
+        String interviewId = message.getValue().get("interviewId");
+        int turnNumber = Integer.parseInt(message.getValue().get("turnNumber"));
+
+        log.info("MQ 消费者接单: 开始执行评价任务, interviewId: {}, turnNumber: {}", interviewId, turnNumber);
+
+        try {
+            interviewService.processEvaluationTask(interviewId, turnNumber, String.valueOf(message.getId()));
+            log.info("MQ 消费者完工并 ACK: interviewId: {}, turnNumber: {}", interviewId, turnNumber);
+
+        } catch (Exception e) {
+            log.error("MQ 消费者执行评价异常, interviewId: {}, turnNumber: {}", interviewId, turnNumber, e);
+            // 抛出异常后，这条消息会被留在 Redis 的 PEL 里，等待救援机制重试。
+        }
+    }
+}
