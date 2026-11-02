@@ -58,9 +58,14 @@ class  sTest{
     public String parseResume(String extractedText) {
         List<ChatCompletionMessageParam> messages = new ArrayList<>();
 
+        String deepSeekApiKey = System.getenv("DEEPSEEK_API_KEY");
+        if (deepSeekApiKey == null || deepSeekApiKey.isBlank()) {
+            throw new IllegalStateException("DEEPSEEK_API_KEY is required to run the resume parsing integration test");
+        }
+
         OpenAIClient client = OpenAIOkHttpClient.builder()
-                .apiKey("sk-b8156f3335fd4e878b5b352789ebfba7")
-                .baseUrl("https://api.deepseek.com/v1")
+                .apiKey(deepSeekApiKey)
+                .baseUrl(System.getenv().getOrDefault("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"))
                 .build();
 
         // 1. 系统消息：定义规则 (显式转型解决报错)
