@@ -1,0 +1,108 @@
+/* src/assets/styles/main.scss */
+@use './theme.scss';
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-gradient);
+  background-attachment: fixed; 
+  background-size: cover;
+  color: var(--text-color);
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', Arial, sans-serif;
+  min-height: 100vh;
+}
+
+/* === 1. 强制所有内层卡片完全不透明 === */
+/* 这一段代码直接接管了首页、个人中心、历史记录等所有界面的卡片 */
+.el-card, .dashboard-card, .section-card, .history-card, 
+.start-card, .uploaded-resume-card, .resume-preview, 
+.radar-chart-container, .evaluation-section, .suggestion-section,
+.chart-block, .profile-card, .theme-card-mini, .stat-box {
+  background: var(--card-bg) !important; /* 使用纯色背景 */
+  backdrop-filter: none !important;      /* 移除毛玻璃模糊 */
+  -webkit-backdrop-filter: none !important;
+  border-color: var(--sidebar-border) !important; /* 边框更自然 */
+}
+
+
+/* === 2. 覆盖 Element Plus 输入框等样式 === */
+.el-input__wrapper {
+  background-color: var(--input-bg) !important;
+  box-shadow: none !important;
+  border: 1px solid var(--glass-border);
+  transition: all 0.3s;
+}
+.el-input__wrapper.is-focus {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 10px rgba(var(--primary-color-rgb), 0.3) !important;
+}
+.el-input__inner { color: var(--text-color) !important; }
+.el-tabs__item { color: var(--text-secondary) !important; }
+.el-tabs__item.is-active { color: var(--primary-color) !important; font-weight: bold; }
+.el-tabs__nav-wrap::after { background-color: var(--glass-border) !important; }
+
+/* === 3. 全局主题切换：水滴扩散基础配置 (基于 View Transitions API) === */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+/* 旧画面在下，新画面在上（新画面会以遮罩的形式扩散展开） */
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 2;
+}
+
+/* ✅ 关键性能优化：主题切换时禁用所有CSS过渡，避免全局卡顿 */
+html.theme-switching,
+html.theme-switching * {
+  transition: none !important;
+  animation: none !important;
+}
+html.theme-switching .el-transition--fade-enter-active,
+html.theme-switching .el-transition--fade-leave-active {
+  transition: none !important;
+}
+
+
+/* === 4. 退出/结束面试确认框主题适配（Element Plus MessageBox） === */
+.theme-confirm-box.el-message-box {
+  background: var(--modal-bg) !important;
+  border: 1px solid var(--sidebar-border) !important;
+  color: var(--modal-text) !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35) !important;
+}
+
+.theme-confirm-box .el-message-box__title,
+.theme-confirm-box .el-message-box__content,
+.theme-confirm-box .el-message-box__message p,
+.theme-confirm-box .el-message-box__status {
+  color: var(--modal-text) !important;
+}
+
+.theme-confirm-box .el-message-box__headerbtn .el-message-box__close {
+  color: var(--text-secondary) !important;
+}
+
+.theme-confirm-box .el-message-box__headerbtn .el-message-box__close:hover {
+  color: var(--modal-text) !important;
+}
+
+.theme-confirm-box .el-message-box__btns .el-button {
+  background: transparent !important;
+  border: 1px solid var(--sidebar-border) !important;
+  color: var(--modal-text) !important;
+}
+
+.theme-confirm-box .el-message-box__btns .el-button:hover {
+  background: var(--modal-hover-bg) !important;
+}
+
+.theme-confirm-box .el-message-box__btns .el-button--primary,
+.theme-confirm-box .el-message-box__btns .el-button--danger {
+  background: var(--primary-color) !important;
+  border-color: var(--primary-color) !important;
+  color: #ffffff !important;
+}
