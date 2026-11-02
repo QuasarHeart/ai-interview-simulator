@@ -96,25 +96,18 @@ REPORT_MODEL]
 - LiveKit Server，用于 2.0 的实时房间和音视频会话。
 - 业务后端回调地址，用于最终报告和失败回调。
 
-### 3.3 代理与网络策略
+### 3.3 网络策略
 
-当前双服务编排文件里，2.0 容器默认带有代理与内网解析配置：
+当前云部署默认不再强制代理，也不再依赖本地 `host.docker.internal` 代理转发。
 
-- `HTTP_PROXY=http://host.docker.internal:6591`
-- `HTTPS_PROXY=http://host.docker.internal:6591`
-- `NO_PROXY=localhost,127.0.0.1,interview-api-v1`
-- `extra_hosts` 里把 `host.docker.internal` 指向宿主机网关
-- `dns` 里显式配置 `8.8.8.8` 和 `1.1.1.1`
-
-如果你的部署环境没有本地代理，建议移除或替换这些值；如果有公司代理，则需要把地址改成你的真实代理端口。
+- 直接使用云服务器对外网络即可。
+- 如果你的公司网络必须走代理，可以在后续自行扩展 compose 配置，但默认部署路径不再绑定代理。
 
 ### 3.4 外部网络
 
-`docker-compose.dual.yml` 使用了外部网络 `ml_service`。部署前需要先确保这个网络存在，否则编排会失败。
+当前部署方案不再依赖外部 Docker 网桥。`docker compose` 会自动创建默认网络，并让 `interview-api-v1` 和 `interview-agent-v2` 共享同一个 Compose 网络。
 
-```bash
-docker network create ml_service
-```
+这意味着你不需要单独创建 `ml_service` 之类的外部网络，也不需要手动处理 Docker bridge 名称。
 
 ## 4. 镜像与系统依赖
 
@@ -155,7 +148,7 @@ docker network create ml_service
 | --- | --- | --- | --- |
 | `DASHSCOPE_API_KEY` | 无 | 1.0 文本模型接入凭证 | 是 |
 | `DASHSCOPE_BASE_URL` | `https://dashscope.aliyuncs.com/compatible-mode/v1` | OpenAI 兼容接口地址 | 否 |
-| `JUDGE_MODEL` | `qwen-turbo` | 面试分析与问答模型 | 否 |
+| `JUDGE_MODEL` | `qwen-flash` | 面试分析与问答模型 | 否 |
 | `SCORING_TEMPERATURE` | `1.0` | 评分模型温度 | 否 |
 | `LLM_REQUEST_TIMEOUT_SECONDS` | `30` | 单次模型请求超时 | 否 |
 | `LLM_MAX_RETRIES` | `1` | 模型重试次数 | 否 |
@@ -187,7 +180,7 @@ docker network create ml_service
 | 变量 | 默认值 | 用途 | 是否必需 |
 | --- | --- | --- | --- |
 | `ML_SERVICE_ENV_FILE` | `.env.ml-service` | `.env` 加载路径 | 否 |
-| `GEMINI_MODEL` | `gemini-2.5-flash-native-audio-preview-12-2025` | 实时面试模型 | 否 |
+| `GEMINI_MODEL` | `gemini-3.8-live` | 实时面试模型 | 否 |
 | `GEMINI_VOICE` | `Puck` | 实时语音音色 | 否 |
 | `GEMINI_TEMPERATURE` | `0.8` | 实时模型温度 | 否 |
 | `GOOGLE_API_KEY` | 无 | Gemini API 凭证 | 二选一 |
@@ -212,7 +205,7 @@ docker network create ml_service
 
 | 变量 | 默认值 | 用途 |
 | --- | --- | --- |
-| `REPORT_MODEL` | `gemini-2.5-flash-lite` | 最终报告模型 |
+| `REPORT_MODEL` | `gemini-3.8-flash` | 最终报告模型 |
 | `REPORT_TEMPERATURE` | `0.2` | 报告生成温度 |
 | `REPORT_MAX_OUTPUT_TOKENS` | `4096` | 报告最大输出长度 |
 | `REPORT_CALLBACK_URL_TEMPLATE` | `https://nas.feixingxr.com/api/v1/interviews/{interviewId}/report-callback` | 报告回调地址模板 |
@@ -241,7 +234,7 @@ docker network create ml_service
 
 ### 6.1 准备环境文件
 
-在 `ml-service/` 目录下准备 `.env.ml-service`，至少确认下面这些变量可用：
+在 `ml-service/` 目录下从 `.env.example` 复制出 `.env.ml-service`，再在本地填写凭证；不要把真实凭证写入代码、文档或提交记录。至少确认下面这些变量可用：
 
 - `DASHSCOPE_API_KEY`
 - `GOOGLE_API_KEY`，或 `GOOGLE_USE_VERTEXAI=true` 时配好 Vertex AI 相关配置
@@ -250,15 +243,17 @@ docker network create ml_service
 
 ### 6.2 创建外部网络
 
-```bash
-docker network create ml_service
-```
+这一步已经不需要了。Compose 会自动创建并管理默认网络。
 
 ### 6.3 构建并启动
 
+推荐直接使用仓库里的部署脚本，它会自动检查网络并构建启动服务：
+
 ```bash
-docker compose -f docker-compose.dual.yml up -d --build
+bash scripts/deploy.sh
 ```
+
+如果你想手工执行，也可以继续用 `docker compose -f docker-compose.dual.yml up -d --build`。
 
 ### 6.4 验证 1.0
 
@@ -303,8 +298,6 @@ python -m app.agent start
 ### 7.2 2.0 常见问题
 
 - `GOOGLE_API_KEY` 未配置，且没有启用 Vertex AI 时，worker 会在构建实时模型时失败。
-- `ml_service` 外部网络缺失，会导致 compose 编排失败。
-- 代理配置不正确时，LiveKit 或 Google API 可能无法出网。
 - `INTERVIEW_GEMINI_AUTO_ACTIVITY_*` 和 `INTERVIEW_ENDPOINTING_*` 配置过激，会导致抢话或过早结束用户轮次。
 
 ### 7.3 运维建议

@@ -23,7 +23,7 @@ logger = logging.getLogger("ml-service.official_workflow")
 _DEFAULT_REPORT_CALLBACK_URL_TEMPLATE = "https://nas.feixingxr.com/api/v1/interviews/{interviewId}/report-callback"
 _REPORT_CALLBACK_MAX_ATTEMPTS = max(1, int(os.getenv("REPORT_CALLBACK_MAX_ATTEMPTS", "3")))
 _REPORT_REQUEST_TIMEOUT_SECONDS = max(1.0, float(os.getenv("REPORT_REQUEST_TIMEOUT_SECONDS", "20")))
-_REPORT_MODEL = (os.getenv("REPORT_MODEL", "gemini-2.5-flash-lite") or "gemini-2.5-flash-lite").strip()
+_REPORT_MODEL = (os.getenv("REPORT_MODEL", "gemini-3.8-flash") or "gemini-3.8-flash").strip()
 _REPORT_TEMPERATURE = float(os.getenv("REPORT_TEMPERATURE", "0.2"))
 _REPORT_MAX_OUTPUT_TOKENS = max(256, int(os.getenv("REPORT_MAX_OUTPUT_TOKENS", "4096")))
 
