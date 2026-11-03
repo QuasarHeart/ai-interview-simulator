@@ -22,67 +22,63 @@
 ## 架构
 
 ```mermaid
-flowchart LR
-    %% External clients and the shared business backend
+flowchart TB
     subgraph CLIENTS["业务客户端"]
-        WEB["Web / Electron 前端"]
-        BACKEND["业务后端<br/>会话、用户与报告"]
+        direction LR
+        WEB["Web / Electron<br/>前端"]
+        BACKEND["业务后端<br/>会话与报告"]
     end
 
-    subgraph ML["ML Service"]
+    subgraph RUNTIMES["ML Service"]
+        direction LR
         subgraph HTTP["运行时 1.0 · FastAPI"]
-            API["HTTP API<br/>同步与 SSE 流式接口"]
-            ENGINE["LLMEngine<br/>Prompt 渲染 · JSON 修复 · 重试"]
-            PROMPTS["YAML Prompt 模板<br/>start · follow-up · analysis · report"]
+            direction TB
+            API["HTTP API<br/>REST + SSE"]
+            ENGINE["LLMEngine<br/>提示词 · JSON · 重试"]
             API --> ENGINE
-            ENGINE --> PROMPTS
         end
-
-        subgraph REALTIME["运行时 2.0 · LiveKit Agent Worker"]
+        subgraph REALTIME["运行时 2.0 · LiveKit Agent"]
+            direction TB
             WORKER["AgentServer<br/>ai-interview-3"]
-            SESSION["AgentSession<br/>VAD · turn handling · room I/O"]
-            WORKFLOW["InterviewWorkflowAgent<br/>阶段控制 · 上下文 · 报告触发"]
-            OFFICIAL_PROMPTS["OfficialPromptRegistry<br/>persona · report prompts"]
-            WORKER --> SESSION
-            SESSION --> WORKFLOW
-            WORKFLOW --> OFFICIAL_PROMPTS
+            SESSION["AgentSession<br/>实时会话与媒体"]
+            WORKFLOW["InterviewWorkflowAgent<br/>阶段与报告"]
+            WORKER --> SESSION --> WORKFLOW
         end
-
-        CONFIG["环境配置<br/>.env.ml-service / Secret Manager"]
-        CALLBACK["报告回调客户端<br/>HTTP · 超时 · 重试 · 幂等由业务侧保证"]
     end
 
-    subgraph PROVIDERS["模型与实时基础设施"]
-        DASHSCOPE["DashScope<br/>OpenAI-compatible API<br/>qwen-flash"]
-        LIVEKIT["LiveKit Server / Cloud<br/>Room · WebRTC · dispatch"]
-        GEMINI["Google Gemini Live<br/>RealtimeModel"]
-        REPORT["Google Gemini<br/>Structured report model"]
-        ANAM["Anam Avatar<br/>可选视频数字人"]
+    subgraph PROVIDERS["外部模型与基础设施"]
+        direction TB
+        DASHSCOPE["DashScope<br/>qwen-flash"]
+        LIVEKIT["LiveKit<br/>Room + WebRTC"]
+        GEMINI["Gemini Live<br/>实时模型"]
+        REPORT["Gemini<br/>报告模型"]
+        ANAM["Anam<br/>可选数字人"]
     end
+
+    PROMPTS["YAML Prompt 模板<br/>start · follow-up · analysis · report"]
+    CALLBACK["报告回调<br/>HTTP + 重试"]
+    CONFIG["环境配置<br/>.env / Secret Manager"]
 
     WEB -->|"REST / SSE"| API
     BACKEND -->|"REST / SSE"| API
-    WEB <-->|"WebRTC 音视频 / Data"| LIVEKIT
-    BACKEND -->|"创建房间、注入 metadata"| LIVEKIT
+    BACKEND -->|"创建房间 + metadata"| LIVEKIT
+    WEB <-->|"音视频 / Data"| LIVEKIT
     LIVEKIT -->|"Job dispatch"| WORKER
-    LIVEKIT <-->|"AgentSession"| SESSION
-
-    ENGINE -->|"文本生成、追问、分析、报告"| DASHSCOPE
-    SESSION <-->|"实时音频输入 / 输出"| GEMINI
-    WORKFLOW -->|"会话上下文与 transcript"| REPORT
-    SESSION -->|"视频模式（可选）"| ANAM
-    WORKFLOW -->|"报告成功 / 失败"| CALLBACK
-    CALLBACK -->|"POST report-callback"| BACKEND
-
+    ENGINE -->|"文本生成与分析"| DASHSCOPE
+    ENGINE --> PROMPTS
+    SESSION <-->|"实时音频"| GEMINI
+    SESSION -->|"视频模式"| ANAM
+    WORKFLOW -->|"结构化报告"| REPORT
+    WORKFLOW --> CALLBACK
+    CALLBACK -->|"POST"| BACKEND
     CONFIG -.-> API
     CONFIG -.-> WORKER
-    CONFIG -.-> ENGINE
-    CONFIG -.-> WORKFLOW
+    CONFIG -.-> CALLBACK
 
     classDef runtime fill:#e8f1ff,stroke:#2563eb,color:#172554
     classDef provider fill:#ecfdf5,stroke:#059669,color:#064e3b
     classDef external fill:#fff7ed,stroke:#ea580c,color:#7c2d12
-    class API,ENGINE,PROMPTS,WORKER,SESSION,WORKFLOW,OFFICIAL_PROMPTS,CONFIG,CALLBACK runtime
+    class API,ENGINE,WORKER,SESSION,WORKFLOW,PROMPTS,CALLBACK,CONFIG runtime
     class DASHSCOPE,LIVEKIT,GEMINI,REPORT,ANAM provider
     class WEB,BACKEND external
 ```
