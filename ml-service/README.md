@@ -21,19 +21,79 @@
 
 ## 架构
 
-```text
-业务后端/前端
-        │
-        ├── HTTP ──> FastAPI 1.0 ──> DashScope / OpenAI-compatible LLM
-        │                              └── 回调报告
-        │
-        └── LiveKit Room <──> Agent 2.0
-                                  ├── Gemini Live
-                                  ├── Report model
-                                  └── Anam（可选）
+```mermaid
+flowchart LR
+    %% External clients and the shared business backend
+    subgraph CLIENTS["业务客户端"]
+        WEB["Web / Electron 前端"]
+        BACKEND["业务后端<br/>会话、用户与报告"]
+    end
+
+    subgraph ML["ML Service"]
+        subgraph HTTP["运行时 1.0 · FastAPI"]
+            API["HTTP API<br/>同步与 SSE 流式接口"]
+            ENGINE["LLMEngine<br/>Prompt 渲染 · JSON 修复 · 重试"]
+            PROMPTS["YAML Prompt 模板<br/>start · follow-up · analysis · report"]
+            API --> ENGINE
+            ENGINE --> PROMPTS
+        end
+
+        subgraph REALTIME["运行时 2.0 · LiveKit Agent Worker"]
+            WORKER["AgentServer<br/>ai-interview-3"]
+            SESSION["AgentSession<br/>VAD · turn handling · room I/O"]
+            WORKFLOW["InterviewWorkflowAgent<br/>阶段控制 · 上下文 · 报告触发"]
+            OFFICIAL_PROMPTS["OfficialPromptRegistry<br/>persona · report prompts"]
+            WORKER --> SESSION
+            SESSION --> WORKFLOW
+            WORKFLOW --> OFFICIAL_PROMPTS
+        end
+
+        CONFIG["环境配置<br/>.env.ml-service / Secret Manager"]
+        CALLBACK["报告回调客户端<br/>HTTP · 超时 · 重试 · 幂等由业务侧保证"]
+    end
+
+    subgraph PROVIDERS["模型与实时基础设施"]
+        DASHSCOPE["DashScope<br/>OpenAI-compatible API<br/>qwen-flash"]
+        LIVEKIT["LiveKit Server / Cloud<br/>Room · WebRTC · dispatch"]
+        GEMINI["Google Gemini Live<br/>RealtimeModel"]
+        REPORT["Google Gemini<br/>Structured report model"]
+        ANAM["Anam Avatar<br/>可选视频数字人"]
+    end
+
+    WEB -->|"REST / SSE"| API
+    BACKEND -->|"REST / SSE"| API
+    WEB <-->|"WebRTC 音视频 / Data"| LIVEKIT
+    BACKEND -->|"创建房间、注入 metadata"| LIVEKIT
+    LIVEKIT -->|"Job dispatch"| WORKER
+    LIVEKIT <-->|"AgentSession"| SESSION
+
+    ENGINE -->|"文本生成、追问、分析、报告"| DASHSCOPE
+    SESSION <-->|"实时音频输入 / 输出"| GEMINI
+    WORKFLOW -->|"会话上下文与 transcript"| REPORT
+    SESSION -->|"视频模式（可选）"| ANAM
+    WORKFLOW -->|"报告成功 / 失败"| CALLBACK
+    CALLBACK -->|"POST report-callback"| BACKEND
+
+    CONFIG -.-> API
+    CONFIG -.-> WORKER
+    CONFIG -.-> ENGINE
+    CONFIG -.-> WORKFLOW
+
+    classDef runtime fill:#e8f1ff,stroke:#2563eb,color:#172554
+    classDef provider fill:#ecfdf5,stroke:#059669,color:#064e3b
+    classDef external fill:#fff7ed,stroke:#ea580c,color:#7c2d12
+    class API,ENGINE,PROMPTS,WORKER,SESSION,WORKFLOW,OFFICIAL_PROMPTS,CONFIG,CALLBACK runtime
+    class DASHSCOPE,LIVEKIT,GEMINI,REPORT,ANAM provider
+    class WEB,BACKEND external
 ```
 
-1.0 和 2.0 使用不同依赖文件、Dockerfile 和进程，可以分别部署和扩缩容。
+### 数据流与边界
+
+1. **HTTP 面**：前端或业务后端调用 FastAPI；`LLMEngine` 从 YAML 模板构造提示词，通过 DashScope 的 OpenAI-compatible API 完成首问、追问、回答分析和报告生成。流式接口通过 SSE 返回增量字段。
+2. **实时面**：业务后端创建或调度 LiveKit Room，并把面试配置写入 job、context 或 room metadata；Agent Worker 接收任务后创建 `AgentSession`，从 Gemini Live 获取实时对话能力。
+3. **媒体面**：浏览器/Electron 与 LiveKit Room 交换音视频轨道。视频模式且配置了 Anam 凭证时，Agent 额外启动 AvatarSession；缺少配置时继续运行但不输出数字人。
+4. **报告面**：2.0 Agent 从会话上下文和 transcript 渲染报告提示词，使用 Google Gemini 生成结构化报告，经过分数归一化后通过 HTTP 回调业务后端。
+5. **部署边界**：1.0 API 与 2.0 Agent 使用独立依赖、Dockerfile 和进程，可分别部署、扩缩容和进行故障隔离。
 
 ## 运行要求
 
