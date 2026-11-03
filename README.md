@@ -155,4 +155,4 @@ curl http://127.0.0.1:8000/health
 
 ## License
 
-本项目遵循仓库中的 [LICENSE](./LICENSE)。
+本项目遵循 [Apache License 2.0](./LICENSE)，版权归属见 [NOTICE](./NOTICE)。
