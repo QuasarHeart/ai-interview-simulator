@@ -200,14 +200,6 @@ location / {
 
 检查 LiveKit Server 的网络与防火墙：若 UDP 端口 `50000-60000` 被封锁，WebRTC 会降级为 TURN over TCP，延迟明显上升。
 
-### 安装包体积异常增大
-
-`public/` 下的文件会被原样复制进 `dist/`，而 `electron-builder` 的 `files` 包含 `dist/**/*`，因此放在 `public/downloads/` 的安装包会被打包进新的 `app.asar`。建议：
-
-1. 安装包不要放进 `public/`，官网下载改用 `VITE_APP_DOWNLOAD_URL` 指向 CDN；
-2. 构建后执行 `npm run prune:downloads` 清理 `dist/downloads/`；
-3. 主进程已由 Vite 打包，可在打包配置中排除 `node_modules` 进一步瘦身。
-
 ---
 
 ## 📄 设计文档
