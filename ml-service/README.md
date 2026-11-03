@@ -34,14 +34,14 @@ flowchart TB
         subgraph HTTP["运行时 1.0 · FastAPI"]
             direction TB
             API["HTTP API<br/>REST + SSE"]
-            ENGINE["LLMEngine<br/>提示词 · JSON · 重试"]
+            ENGINE["LLMEngine<br/>提示词 · JSON"]
             API --> ENGINE
         end
         subgraph REALTIME["运行时 2.0 · LiveKit Agent"]
             direction TB
             WORKER["AgentServer<br/>ai-interview-3"]
             SESSION["AgentSession<br/>实时会话与媒体"]
-            WORKFLOW["InterviewWorkflowAgent<br/>阶段与报告"]
+            WORKFLOW["Workflow Agent<br/>阶段 · 报告"]
             WORKER --> SESSION --> WORKFLOW
         end
     end
@@ -55,7 +55,7 @@ flowchart TB
         ANAM["Anam<br/>可选数字人"]
     end
 
-    PROMPTS["YAML Prompt 模板<br/>start · follow-up · analysis · report"]
+    PROMPTS["Prompt 模板<br/>start · follow-up"]
     CALLBACK["报告回调<br/>HTTP + 重试"]
     CONFIG["环境配置<br/>.env / Secret Manager"]
 
